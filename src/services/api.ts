@@ -287,7 +287,10 @@ export function getComment(comment: string) {
 }
 
 export function getCommentsForPost(post: string) {
-  return apiRequest<Array<{ comment: { _id: string; author: string; content: string; post: string; createdAt: string } }>>(
+  return apiRequest<
+    | Array<{ comment: { _id: string; author: string; content: string; post: string; createdAt: string } }>
+    | { comments?: Array<{ _id: string; author: string; content: string; post: string; createdAt: string }>; error?: string }
+  >(
     '/api/Commenting/_getCommentsForPost',
     { method: 'POST', body: JSON.stringify({ post }) }
   )

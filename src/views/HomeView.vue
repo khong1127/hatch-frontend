@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { getFriends, getPostsByAuthor, getPostById, getAllUsers } from '@/services/api'
 import PostCard from '@/components/PostCard.vue'
+import CommentThread from '@/components/CommentThread.vue'
 import { useRoute } from 'vue-router'
 
 const auth = useAuthStore()
@@ -132,7 +133,10 @@ onMounted(async () => {
         <div v-else>
           <div v-if="!feed.length" class="empty">No posts yet. Publish your first post from a trip!</div>
           <div v-else class="posts">
-            <PostCard v-for="p in feed" :key="p._id" :post="p" :current-user="auth.user?.username || ''" />
+            <div v-for="p in feed" :key="p._id" class="post-with-comments">
+              <PostCard :post="p" :current-user="auth.user?.username || ''" />
+              <CommentThread :post-id="p._id" />
+            </div>
           </div>
         </div>
       </section>
