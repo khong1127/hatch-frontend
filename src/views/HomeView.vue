@@ -49,11 +49,16 @@ async function loadFeed() {
   error.value = ''
   try {
     const self = auth.user.username
+    console.log('[HomeView] Loading feed for user:', self)
+    
     // Fetch friends list, normalize to array of usernames/ids
     const friendsRes = await getFriends(self)
-    const friends = Array.isArray(friendsRes)
-      ? friendsRes.map((f: any) => (typeof f === 'string' ? f : f.friends || f.friend || f.user)).filter(Boolean)
-      : []
+    console.log('[HomeView] Raw friends response:', friendsRes)
+    
+    // Handle {friends: [...]} response shape
+    const friendsList = (friendsRes as any)?.friends || []
+    const friends = Array.isArray(friendsList) ? friendsList.filter(Boolean) : []
+    console.log('[HomeView] Normalized friends:', friends)
 
     // Resolve all usernames to IDs if available
     let usersList: any[] = []
@@ -67,14 +72,21 @@ async function loadFeed() {
       const match = usersList.find(u => u?.username === nameOrId)
       return match?._id || nameOrId
     }
-    const authors = Array.from(new Set([self, ...friends])).map(resolveId)
+    
+    const selfId = resolveId(self)
+    const friendIds = friends.map(resolveId)
+    const authors = Array.from(new Set([selfId, ...friendIds]))
+    console.log('[HomeView] Authors to fetch (IDs):', authors)
+    
     const allPosts: Post[] = []
     // Fetch posts per author sequentially to avoid hammering backend; could be parallel if safe
     for (const author of authors) {
       try {
   const resRaw: any = await getPostsByAuthor(author)
+  console.log('[HomeView] Posts for author', author, ':', resRaw)
   const res = Array.isArray(resRaw) ? resRaw : (Array.isArray(resRaw?.posts) ? resRaw.posts : [])
   const mapped: Post[] = await normalizePosts(res)
+  console.log('[HomeView] Mapped posts:', mapped)
         allPosts.push(...mapped)
       } catch (e) {
         // ignore individual author errors
