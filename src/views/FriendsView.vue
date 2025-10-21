@@ -8,6 +8,7 @@ import {
   denyFriendRequest,
   getFriends,
   getReceivedFriendRequests,
+  getSentFriendRequests,
   getAllUsers
 } from '@/services/api'
 
@@ -23,12 +24,15 @@ const searchQuery = ref('')
 const searchLoading = ref(false)
 const searchError = ref('')
 const searchResults = ref<Array<{ username: string }>>([])
-const directTarget = ref('')
 
 // Requests tab state
 const reqLoading = ref(false)
 const reqError = ref('')
 const received = ref<Array<{ sender: string; receiver: string }>>([])
+
+// Sent requests state
+const sentLoading = ref(false)
+const sent = ref<string[]>([])
 
 // Friends tab state
 const friendsLoading = ref(false)
@@ -39,18 +43,24 @@ function isFriend(u: string) {
   return friends.value.some(f => f.username === u)
 }
 
+function isSent(u: string) {
+  return sent.value.includes(u)
+}
+
+function isReceivedFrom(u: string) {
+  return received.value.some(r => r.sender === u)
+}
+
 async function refreshFriends() {
   if (!username.value) return
   friendsLoading.value = true
   friendsError.value = ''
   try {
     const res = await getFriends(username.value)
-    // Spec returns Array<{ friends: string }>, where each element has a username/id string
-    const items = Array.isArray(res) ? res : []
-    const names = items
-      .map((r: any) => r?.friends)
-      .filter((v: any) => typeof v === 'string') as string[]
-    friends.value = names.map(n => ({ username: n }))
+    // Backend returns {friends: [...]}, not array of objects
+    const friendsList = (res as any)?.friends || []
+    const names = Array.isArray(friendsList) ? friendsList : []
+    friends.value = names.filter((v: any) => typeof v === 'string').map((n: string) => ({ username: n }))
   } catch (e: any) {
     friendsError.value = e.message || 'Failed to load friends'
   } finally {
@@ -64,16 +74,31 @@ async function refreshRequests() {
   reqError.value = ''
   try {
     const res = await getReceivedFriendRequests(username.value)
-    // Spec returns Array<{ receivedRequests: string }> as usernames/ids of senders
-    const items = Array.isArray(res) ? res : []
-    received.value = items
-      .map((r: any) => r?.receivedRequests)
+    // Backend returns {receivedRequests: ["alice", "bob"]}
+    const requestsList = (res as any)?.receivedRequests || []
+    const senders = Array.isArray(requestsList) ? requestsList : []
+    received.value = senders
       .filter((v: any) => typeof v === 'string')
       .map((sender: string) => ({ sender, receiver: username.value }))
   } catch (e: any) {
     reqError.value = e.message || 'Failed to load requests'
   } finally {
     reqLoading.value = false
+  }
+}
+
+async function refreshSent() {
+  if (!username.value) return
+  sentLoading.value = true
+  try {
+    const res = await getSentFriendRequests(username.value)
+    // Backend likely returns {sentRequests: ["alice", "bob"]}
+    const sentList = (res as any)?.sentRequests || []
+    sent.value = Array.isArray(sentList) ? sentList.filter((v: any) => typeof v === 'string') : []
+  } catch (_e: any) {
+    sent.value = []
+  } finally {
+    sentLoading.value = false
   }
 }
 
@@ -93,7 +118,7 @@ watch(searchQuery, (q) => {
         .map((u: any) => u?.username)
         .filter((v: any) => typeof v === 'string') as string[]
       const qlc = q.toLowerCase()
-      const foundNames = users.filter(u => u.toLowerCase().includes(qlc))
+      const foundNames = users.filter(u => u.toLowerCase().startsWith(qlc))
 
       searchResults.value = [...new Set(foundNames)]
         .filter(u => u !== username.value)
@@ -118,8 +143,9 @@ async function doSendRequest(target: string) {
   if (!target) return
   try {
     await sendFriendRequest(username.value, target)
-    // Optionally refresh requests
-    refreshRequests()
+    // Add to sent list immediately for instant UI feedback
+    if (!sent.value.includes(target)) sent.value.push(target)
+    refreshSent()
   } catch (e: any) {
     alert(e.message || 'Failed to send request')
   }
@@ -155,10 +181,13 @@ watch(tab, (t) => {
   ensureAuthed()
   if (t === 'friends') refreshFriends()
   if (t === 'requests') refreshRequests()
+  if (t === 'search') refreshSent()
 })
 
-// Default: preload friends (used by isFriend in search)
+// Default: preload friends and sent requests (used by isFriend/isSent in search)
 refreshFriends()
+refreshSent()
+refreshRequests()
 </script>
 
 <template>
@@ -174,17 +203,15 @@ refreshFriends()
     <!-- Search tab -->
     <section v-if="tab === 'search'" class="panel">
       <input v-model="searchQuery" placeholder="Search usernames" />
-      <div class="inline">
-        <input v-model="directTarget" placeholder="Or type a username to add" />
-        <button @click="doSendRequest(directTarget)">Send request</button>
-      </div>
       <div v-if="searchLoading">Searching…</div>
       <div v-if="searchError" class="error">{{ searchError }}</div>
       <ul v-if="searchResults.length">
         <li v-for="u in searchResults" :key="u.username" class="row">
           <span>{{ u.username }}</span>
-          <button v-if="!isFriend(u.username)" @click="doSendRequest(u.username)">Send friend request</button>
-          <span v-else class="pill">Friend</span>
+          <button v-if="isFriend(u.username)" disabled class="pill">Friend</button>
+          <button v-else-if="isSent(u.username)" disabled class="pill">Sent</button>
+          <button v-else-if="isReceivedFrom(u.username)" disabled class="pill">Request received</button>
+          <button v-else @click="doSendRequest(u.username)">Send friend request</button>
         </li>
       </ul>
       <div v-else-if="!searchLoading && searchQuery" class="muted">No users found</div>
@@ -196,9 +223,11 @@ refreshFriends()
       <div v-if="reqError" class="error">{{ reqError }}</div>
       <ul v-if="received.length">
         <li v-for="r in received" :key="r.sender + '->' + r.receiver" class="row">
-          <span>{{ r.sender }} wants to be friends</span>
-          <button @click="doAccept(r.sender)">Accept</button>
-          <button @click="doDeny(r.sender)">Deny</button>
+          <span>{{ r.sender }}</span>
+          <div class="actions">
+            <button @click="doAccept(r.sender)">Accept</button>
+            <button @click="doDeny(r.sender)">Deny</button>
+          </div>
         </li>
       </ul>
       <div v-else-if="!reqLoading" class="muted">No friend requests at the moment</div>
@@ -225,6 +254,7 @@ refreshFriends()
 .tabs .active { background: var(--color-background-mute); }
 .panel { display: grid; gap: 0.5rem; }
 .row { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; }
+.actions { display: flex; gap: 0.5rem; }
 .pill { opacity: 0.7; font-size: 0.9em; }
 .error { color: red; }
 .muted { opacity: 0.8; }
