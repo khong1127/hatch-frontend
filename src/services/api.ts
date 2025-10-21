@@ -106,6 +106,43 @@ export function endSession(user: string, session: string) {
   })
 }
 
+// SessionLogging Queries
+// Attempts to retrieve entries for a given session. Normalizes various backend shapes into string[] of image IDs.
+export async function getEntriesInSession(user: string, session: string): Promise<string[]> {
+  const res = await apiRequest<any>('/api/SessionLogging/_getEntriesInSession', {
+    method: 'POST',
+    body: JSON.stringify({ user, session })
+  })
+  // Normalize response into an array of string IDs
+  try {
+    if (!res) return []
+    if (Array.isArray(res)) {
+      // Could be ["img1", "img2"] or [{ entry: "img1" }, { image: "img2" }]
+      return res
+        .map((item: any) => {
+          if (typeof item === 'string') return item
+          if (item && typeof item === 'object') {
+            return item.entry || item.image || item.id || null
+          }
+          return null
+        })
+        .filter((x: any): x is string => typeof x === 'string')
+    }
+    if (typeof res === 'object') {
+      // Could be { entries: ["img1", ...] } or { session: { entries: [...] } }
+      const entries = res.entries || res.session?.entries
+      if (Array.isArray(entries)) {
+        return entries
+          .map((item: any) => (typeof item === 'string' ? item : item?.entry || item?.image || item?.id))
+          .filter((x: any): x is string => typeof x === 'string')
+      }
+    }
+  } catch {
+    // fallthrough to empty
+  }
+  return []
+}
+
 // ---------- Posting Actions ----------
 export function createPost(user: string, images: string[], caption: string) {
   return apiRequest<{ post: string }>('/api/Posting/create', {
@@ -130,14 +167,14 @@ export function editPost(user: string, post: string, new_caption: string) {
 
 // ---------- Posting Queries ----------
 export function getPostById(post: string) {
-  return apiRequest<Array<{ postDetails: { _id: string; caption: string; images: string[]; author: string; createdAt: string } }>>(
+  return apiRequest<{ postDetails?: { _id: string; caption: string; images: string[]; author: string; createdAt: string }; error?: string }>(
     '/api/Posting/_getPostById',
     { method: 'POST', body: JSON.stringify({ post }) }
   )
 }
 
 export function getPostsByAuthor(user: string) {
-  return apiRequest<Array<{ post: { _id: string; caption: string; images: string[]; author: string; createdAt: string } }>>(
+  return apiRequest<{ posts?: Array<{ _id: string; caption: string; images: string[]; author: string; createdAt: string }>; error?: string }>(
     '/api/Posting/_getPostsByAuthor',
     { method: 'POST', body: JSON.stringify({ user }) }
   )

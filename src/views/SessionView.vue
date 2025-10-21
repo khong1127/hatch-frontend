@@ -2,7 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { startSession, addEntry, endSession } from '@/services/api'
+import { startSession, addEntry, endSession, getEntriesInSession } from '@/services/api'
+import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -12,6 +13,23 @@ const sessionId = ref<string | null>(null)
 const loading = ref(false)
 const entries = ref<Array<{ id: string; image: string }>>([])
 const error = ref('')
+const sessionStore = useSessionStore()
+
+async function loadEntriesFromBackend(id: string) {
+  if (!username.value) return
+  try {
+    const ids = await getEntriesInSession(username.value, id)
+    // Merge with any existing store entries to preserve image previews where available
+    const existingMap = new Map(sessionStore.entries.map(e => [e.id, e.imageData]))
+    const normalized = ids.map(imgId => ({ id: imgId, image: existingMap.get(imgId) || '' }))
+    entries.value = normalized
+    // Also reflect in store (keep existing imageData if present)
+    sessionStore.entries.splice(0, sessionStore.entries.length, ...ids.map(id => ({ id, imageData: existingMap.get(id) })))
+  } catch (e: any) {
+    // Don't block UI; just show no entries if fetch fails
+    console.warn('Failed to load session entries', e)
+  }
+}
 
 async function initSession() {
   if (!username.value) {
@@ -21,8 +39,24 @@ async function initSession() {
   loading.value = true
   error.value = ''
   try {
-    const res = await startSession(username.value)
-    sessionId.value = res.session
+    // Get user ID for backend calls
+    const userId = await auth.getCurrentUserId()
+    const userIdOrName = userId || username.value
+    console.log('[SessionView] User ID:', userIdOrName)
+
+    // Try restore existing session first
+    sessionStore.restore()
+    if (sessionStore.activeSessionId) {
+      sessionId.value = sessionStore.activeSessionId
+    }
+    if (!sessionId.value) {
+      const res = await startSession(userIdOrName)
+      sessionId.value = res.session
+      sessionStore.start(res.session)
+    }
+    if (sessionId.value) {
+      await loadEntriesFromBackend(sessionId.value)
+    }
   } catch (e: any) {
     error.value = e.message || 'Failed to start session'
   } finally {
@@ -45,6 +79,9 @@ async function logBird() {
     
     loading.value = true
     try {
+      const userId = await auth.getCurrentUserId()
+      const userIdOrName = userId || username.value
+      
       // Convert to base64 for now (TODO: upload to storage service)
       const reader = new FileReader()
       reader.onload = async (event) => {
@@ -53,10 +90,11 @@ async function logBird() {
         // For now, use a placeholder ID (backend may require actual image IDs)
         const imageId = `img_${Date.now()}`
         
-        await addEntry(username.value, sessionId.value!, imageId)
+        await addEntry(userIdOrName, sessionId.value!, imageId)
         
         // Add to local entries for display
         entries.value.push({ id: imageId, image: base64 })
+        sessionStore.addEntry(imageId, base64)
       }
       reader.readAsDataURL(file)
     } catch (e: any) {
@@ -73,8 +111,11 @@ async function finishSession() {
   if (!sessionId.value || !username.value) return
   loading.value = true
   try {
-    await endSession(username.value, sessionId.value)
-    router.push('/')
+    const userId = await auth.getCurrentUserId()
+    const userIdOrName = userId || username.value
+    await endSession(userIdOrName, sessionId.value)
+    // Always go to Publish view to let user add a caption
+    router.push('/publish')
   } catch (e: any) {
     error.value = e.message || 'Failed to end session'
   } finally {

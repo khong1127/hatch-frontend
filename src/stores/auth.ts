@@ -129,5 +129,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, error, signIn, register, signOut, restore }
+  async function getCurrentUserId(): Promise<string | null> {
+    if (!user.value?.username) return null
+    try {
+      const allUsers = await getAllUsers()
+      const all = Array.isArray(allUsers) ? allUsers : []
+      const match = all.find((u: any) => u?.username === user.value?.username)
+      return match?._id || null
+    } catch {
+      return null
+    }
+  }
+
+  return { user, loading, error, signIn, register, signOut, restore, getCurrentUserId }
 })
