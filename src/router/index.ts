@@ -4,6 +4,7 @@ import AuthView from '@/views/AuthView.vue'
 import { getUser } from '@/services/authToken'
 import ProfileView from '@/views/ProfileView.vue'
 import FriendsView from '@/views/FriendsView.vue'
+import SessionView from '@/views/SessionView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -24,6 +25,11 @@ const router = createRouter({
       component: FriendsView
     },
     {
+      path: '/session',
+      name: 'session',
+      component: SessionView
+    },
+    {
       path: '/auth',
       name: 'auth',
       component: AuthView
@@ -36,7 +42,7 @@ router.beforeEach((to) => {
   if (to.path === '/' && !user) {
     return { path: '/auth', query: to.query, hash: to.hash }
   }
-  if ((to.path === '/profile' || to.path === '/friends') && !user) {
+  if ((to.path === '/profile' || to.path === '/friends' || to.path === '/session') && !user) {
     return { path: '/auth', query: { redirect: to.fullPath }, hash: to.hash }
   }
 })
