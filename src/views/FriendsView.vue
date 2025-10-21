@@ -6,6 +6,7 @@ import {
   sendFriendRequest,
   acceptFriendRequest,
   denyFriendRequest,
+  removeFriend,
   getFriends,
   getReceivedFriendRequests,
   getSentFriendRequests,
@@ -172,6 +173,19 @@ async function doDeny(sender: string) {
   }
 }
 
+async function doRemoveFriend(friendUsername: string) {
+  if (!username.value) return
+  if (!confirm(`Are you sure you want to remove ${friendUsername} from your friends?`)) {
+    return
+  }
+  try {
+    await removeFriend(username.value, friendUsername)
+    refreshFriends()
+  } catch (e: any) {
+    alert(e.message || 'Failed to remove friend')
+  }
+}
+
 function ensureAuthed() {
   if (!username.value) router.push('/auth')
 }
@@ -240,6 +254,7 @@ refreshRequests()
       <ul v-if="friends.length">
         <li v-for="f in friends" :key="f.username" class="row">
           <span>{{ f.username }}</span>
+          <button @click="doRemoveFriend(f.username)" class="delete-btn">Remove</button>
         </li>
       </ul>
       <div v-else-if="!friendsLoading" class="muted">No friends yet. Search up your friends' usernames to get started!</div>
@@ -260,4 +275,6 @@ refreshRequests()
 .muted { opacity: 0.8; }
 .inline { display: flex; gap: 0.5rem; align-items: center; }
 input { max-width: 300px; padding: 0.25rem 0.5rem; border: 1px solid var(--color-border); }
+.delete-btn { color: #dc2626; border-color: #dc2626; background: transparent; padding: 0.25rem 0.75rem; cursor: pointer; border: 1px solid; border-radius: 4px; }
+.delete-btn:hover { background: #fef2f2; }
 </style>
