@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { getCommentsForPost, addComment, editComment, deleteComment, getAllUsers } from '@/services/api'
 
@@ -92,6 +92,16 @@ async function submitNew() {
 function startEdit(c: Comment) {
   editingId.value = c._id
   editingContent.value = c.content
+  // Focus the input after DOM updates
+  nextTick(() => {
+    const el = document.getElementById(`edit-${c._id}`) as HTMLInputElement | null
+    if (el) {
+      el.focus()
+      // Place cursor at end
+      const len = el.value.length
+      el.setSelectionRange(len, len)
+    }
+  })
 }
 
 function cancelEdit() {
@@ -158,9 +168,16 @@ onMounted(async () => {
         </div>
 
         <div v-if="editingId === c._id" class="edit-row">
-          <input v-model="editingContent" />
-          <button @click="saveEdit" :disabled="savingEdit || !editingContent.trim()">Save</button>
-          <button @click="cancelEdit" :disabled="savingEdit">Cancel</button>
+          <input
+            :id="`edit-${c._id}`"
+            v-model="editingContent"
+            class="edit-input"
+            placeholder="Edit your comment"
+          />
+          <div class="edit-actions">
+            <button class="save-btn" @click="saveEdit" :disabled="savingEdit || !editingContent.trim()">Save</button>
+            <button class="cancel-btn" @click="cancelEdit" :disabled="savingEdit">Cancel</button>
+          </div>
         </div>
         <div v-else class="content-row">
           <p class="content">{{ c.content }}</p>
@@ -185,6 +202,16 @@ onMounted(async () => {
 .meta { display: flex; gap: 0.5rem; align-items: baseline; }
 .author { font-weight: 600; }
 .time { opacity: 0.7; font-size: 0.85rem; }
+.edit-row { display: grid; gap: 0.5rem; }
+.edit-input { width: 100%; padding: 0.5rem 0.6rem; border: 2px solid var(--color-border); border-radius: 6px; background: var(--color-background); }
+.edit-input:focus { outline: none; border-color: var(--color-border-hover); box-shadow: 0 0 0 3px rgba(125, 125, 125, 0.1); }
+.edit-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.save-btn { padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-background); cursor: pointer; }
+.save-btn:hover:not(:disabled) { background: var(--color-background-soft); }
+.save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cancel-btn { padding: 0.4rem 0.8rem; border: 1px solid #dc2626; color: #dc2626; border-radius: 6px; background: var(--color-background); cursor: pointer; }
+.cancel-btn:hover:not(:disabled) { background: #fef2f2; }
+.cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .content-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .content { margin: 0; }
 .actions { display: flex; gap: 0.5rem; }

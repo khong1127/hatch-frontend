@@ -22,8 +22,8 @@ function signOut() {
 <template>
   <div class="header-auth">
     <template v-if="isAuthed">
-    <span class="welcome">Hi, {{ auth.user!.username }}</span>
-    <button @click="signOut">Sign Out</button>
+      <span class="username">{{ auth.user!.username }}</span>
+      <button @click="signOut">Sign Out</button>
     </template>
     <template v-else>
       <button @click="goAuth">Sign In / Register</button>
@@ -32,6 +32,6 @@ function signOut() {
 </template>
 
 <style scoped>
-.header-auth { display: flex; align-items: center; gap: 0.5rem; }
-.welcome { opacity: 0.8; }
+.header-auth { display: flex; align-items: center; gap: 0.75rem; }
+.username { font-style: italic; }
 </style>

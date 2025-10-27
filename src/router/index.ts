@@ -7,6 +7,7 @@ import FriendsView from '@/views/FriendsView.vue'
 import SessionView from '@/views/SessionView.vue'
 import PublishView from '@/views/PublishView.vue'
 import EditPostView from '@/views/EditPostView.vue'
+import { useSessionStore } from '@/stores/session'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -59,6 +60,19 @@ router.beforeEach((to) => {
   }
   if ((to.path === '/publish' || to.path.startsWith('/edit-post')) && !user) {
     return { path: '/auth', query: { redirect: to.fullPath }, hash: to.hash }
+  }
+
+  // Prevent navigating away from session while an active session is in progress
+  try {
+    const sessionStore = useSessionStore()
+    const isActive = !!sessionStore.activeSessionId
+    const isTabRoute = to.path === '/' || to.path === '/profile' || to.path === '/friends'
+    if (isActive && isTabRoute && to.path !== '/session') {
+      // Redirect back to session
+      return { path: '/session' }
+    }
+  } catch {
+    // If store not available for some reason, skip this check
   }
 })
 

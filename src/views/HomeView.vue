@@ -117,14 +117,14 @@ onMounted(async () => {
 <template>
   <main>
     <div class="wrapper">
+      <h1>Welcome to Hatch</h1>
+      <p v-if="isAuthed">Ready to log your bird watching adventures!</p>
+      <p v-else>Sign in to start tracking your trips.</p>
       <div v-if="isAuthed" class="start-trip-section">
         <button @click="startTrip" class="start-trip-btn">
           🦜 Start Trip
         </button>
       </div>
-      <h1>Welcome to Hatch</h1>
-      <p v-if="isAuthed">Ready to log your bird watching adventures!</p>
-      <p v-else>Sign in to start tracking your trips.</p>
 
       <section v-if="isAuthed" class="feed">
         <h2>Your Feed</h2>
@@ -157,7 +157,7 @@ main {
 .start-trip-section {
   display: flex;
   justify-content: center;
-  margin-bottom: 2rem;
+  margin: 1rem 0 2rem;
 }
 
 .start-trip-btn {

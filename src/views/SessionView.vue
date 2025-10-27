@@ -184,9 +184,25 @@ async function finishSession() {
   try {
     const userId = await auth.getCurrentUserId()
     const userIdOrName = userId || username.value
+    const hasEntries = entries.value.length > 0
+    if (!hasEntries) {
+      const proceed = confirm("You haven't logged any birds yet. Are you sure you want to end the session?")
+      if (!proceed) {
+        return
+      }
+    }
+
     await endSession(userIdOrName, sessionId.value)
-    // Always go to Publish view to let user add a caption
-    router.push('/publish')
+
+    if (hasEntries) {
+      // Go to Publish view only when there are entries to caption
+      router.push('/publish')
+    } else {
+      // No entries: clear local session and return to Home
+      sessionStore.clear()
+      // No entries: return to Home
+      router.push('/')
+    }
   } catch (e: any) {
     error.value = e.message || 'Failed to end session'
   } finally {
