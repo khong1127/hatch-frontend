@@ -6,6 +6,14 @@ const API_BASE_URL = import.meta.env.DEV
   ? ''
   : (import.meta.env.VITE_API_BASE_URL || '')
 
+// Build an image URL for legacy file serving (/api/images/:id). If given a data: or http(s) URL, return as-is.
+export function getImageUrl(idOrUrl: string): string {
+  if (!idOrUrl) return ''
+  if (/^(data:|https?:\/\/)/i.test(idOrUrl)) return idOrUrl
+  if (/^\/api\/images\//.test(idOrUrl)) return `${API_BASE_URL}${idOrUrl}`
+  return `${API_BASE_URL}/api/images/${encodeURIComponent(idOrUrl)}`
+}
+
 // The updated API spec expects user fields as simple strings (typically user IDs or usernames depending on backend).
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
@@ -300,5 +308,34 @@ export function getCommentsByAuthor(author: string) {
   return apiRequest<Array<{ comment: { _id: string; author: string; content: string; post: string; createdAt: string } }>>(
     '/api/Commenting/_getCommentsByAuthor',
     { method: 'POST', body: JSON.stringify({ author }) }
+  )
+}
+
+// ---------- File Concept (GCS) ----------
+export function requestUploadUrl(user: string, filename: string, contentType: string, expiresInSeconds = 900) {
+  return apiRequest<{ uploadUrl: string; bucket: string; object: string }>(
+    '/api/File/requestUploadUrl',
+    { method: 'POST', body: JSON.stringify({ user, filename, contentType, expiresInSeconds }) }
+  )
+}
+
+export function confirmUpload(user: string, object: string, contentType: string, size: number) {
+  return apiRequest<{ file: string; url: string }>(
+    '/api/File/confirmUpload',
+    { method: 'POST', body: JSON.stringify({ user, object, contentType, size }) }
+  )
+}
+
+export function getViewUrl(user: string, object: string, expiresInSeconds = 3600) {
+  return apiRequest<{ url: string }>(
+    '/api/File/getViewUrl',
+    { method: 'POST', body: JSON.stringify({ user, object, expiresInSeconds }) }
+  )
+}
+
+export function getFileById(file: string) {
+  return apiRequest<Array<{ file: { _id: string; owner: string; bucket: string; object: string; contentType: string; size: number; createdAt: string } }>>(
+    '/api/File/_getFileById',
+    { method: 'POST', body: JSON.stringify({ file }) }
   )
 }

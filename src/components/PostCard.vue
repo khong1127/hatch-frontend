@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { getAllUsers } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+import { useImageUrls } from '@/composables/useImageUrls'
 
 type Post = {
   _id: string
@@ -23,6 +25,18 @@ const emit = defineEmits<{
 }>()
 
 const authorUsername = ref<string>('')
+const auth = useAuthStore()
+const viewer = ref<string>(auth.user?.username || '')
+onMounted(async () => {
+  try {
+    const id = await auth.getCurrentUserId()
+    if (id) viewer.value = id
+  } catch (e) {
+    // ignore ID resolution errors; will use username fallback
+  }
+})
+
+const { urls: imageUrls } = useImageUrls(() => props.post.images || [], () => viewer.value)
 
 const createdLabel = computed(() => {
   const d = props.post.createdAt ? new Date(props.post.createdAt) : null
@@ -62,9 +76,15 @@ onMounted(() => {
       <div class="timestamp" v-if="createdLabel">{{ createdLabel }}</div>
     </header>
     <div class="images" v-if="post.images?.length">
-      <div v-for="img in post.images" :key="img" class="img-tile">
-        <!-- TODO: Replace placeholder with real image URLs when backend provides them -->
-        <div class="placeholder">{{ img }}</div>
+      <div v-for="(img, idx) in post.images" :key="img" class="img-tile">
+        <img
+          v-if="imageUrls[idx]"
+          class="tile-img"
+          :src="imageUrls[idx]"
+          :alt="`Image ${img}`"
+          @error="(e: Event) => { const el = e.target as HTMLImageElement; el.style.display = 'none'; (el.nextElementSibling as HTMLElement)?.classList.add('show'); }"
+        />
+        <div class="placeholder" :class="{ show: !imageUrls[idx] }" aria-hidden="true">{{ img }}</div>
       </div>
     </div>
     <p class="caption" v-if="post.caption">{{ post.caption }}</p>
@@ -82,7 +102,10 @@ onMounted(() => {
 .author { font-weight: 600; }
 .timestamp { opacity: 0.7; font-size: 0.85rem; }
 .images { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; }
-.img-tile { aspect-ratio: 1; border: 1px dashed var(--color-border); border-radius: 6px; display: grid; place-items: center; font-size: 0.8rem; opacity: 0.8; }
+.img-tile { position: relative; aspect-ratio: 1; border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; }
+.tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.placeholder { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 0.8rem; opacity: 0.7; border: 1px dashed var(--color-border); border-radius: 6px; }
+.placeholder.show { display: flex; }
 .caption { margin: 0.25rem 0 0; }
 .actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
 .action-btn { padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; background: var(--color-background); }

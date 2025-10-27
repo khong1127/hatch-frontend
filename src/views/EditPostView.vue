@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getPostById, editPost } from '@/services/api'
+import { useImageUrls } from '@/composables/useImageUrls'
 
 const router = useRouter()
 const route = useRoute()
@@ -14,6 +15,19 @@ const images = ref<string[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
+
+// Resolve viewer ID for signed URLs
+const viewer = ref<string>(auth.user?.username || '')
+onMounted(async () => {
+  try {
+    const id = await auth.getCurrentUserId()
+    if (id) viewer.value = id
+  } catch (e) {
+    // ignore
+  }
+})
+
+const { urls: imageUrls } = useImageUrls(() => images.value || [], () => viewer.value)
 
 async function loadPost() {
   if (!postId.value) {
@@ -110,8 +124,9 @@ onMounted(() => {
 
     <div v-else class="content">
       <div class="entries-grid" v-if="images.length">
-        <div v-for="img in images" :key="img" class="entry-card">
-          <div class="placeholder">{{ img }}</div>
+        <div v-for="(img, idx) in images" :key="img" class="entry-card">
+          <img v-if="imageUrls[idx]" class="entry-img" :src="imageUrls[idx]" :alt="img" @error="(e: Event) => { const el = e.target as HTMLImageElement; el.style.display = 'none'; (el.nextElementSibling as HTMLElement)?.classList.add('show') }" />
+          <div class="placeholder" :class="{ show: !imageUrls[idx] }">{{ img }}</div>
         </div>
       </div>
 
@@ -138,8 +153,10 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1rem;
 }
-.entry-card { aspect-ratio: 1; border: 1px solid var(--color-border); border-radius: 4px; overflow: hidden; }
-.placeholder { display: grid; place-items: center; height: 100%; opacity: 0.6; font-size: 0.8rem; }
+.entry-card { position: relative; aspect-ratio: 1; border: 1px solid var(--color-border); border-radius: 4px; overflow: hidden; }
+.entry-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.placeholder { position: absolute; inset: 0; display: none; place-items: center; height: 100%; opacity: 0.7; font-size: 0.9rem; border: 1px dashed var(--color-border); }
+.placeholder.show { display: grid; }
 .caption-box { display: grid; gap: 0.5rem; }
 .caption-box label { font-weight: 600; }
 .caption-box textarea { width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid var(--color-border); border-radius: 4px; }

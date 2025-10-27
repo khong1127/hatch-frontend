@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { startSession, addEntry, endSession, getEntriesInSession } from '@/services/api'
+import { startSession, addEntry, endSession, getEntriesInSession, requestUploadUrl, confirmUpload, getFileById, getViewUrl } from '@/services/api'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -15,6 +15,10 @@ const entries = ref<Array<{ id: string; image: string }>>([])
 const error = ref('')
 const sessionStore = useSessionStore()
 
+// Dev toggles for upload behavior
+const FORCE_OCTET = (import.meta as any).env?.VITE_UPLOAD_FORCE_OCTET_STREAM === '1' || (import.meta as any).env?.VITE_UPLOAD_FORCE_OCTET_STREAM === 'true'
+const DEV_NO_CORS = (import.meta as any).env?.VITE_UPLOAD_NO_CORS === '1' || (import.meta as any).env?.VITE_UPLOAD_NO_CORS === 'true'
+
 async function loadEntriesFromBackend(id: string) {
   if (!username.value) return
   try {
@@ -23,6 +27,29 @@ async function loadEntriesFromBackend(id: string) {
     const existingMap = new Map(sessionStore.entries.map(e => [e.id, e.imageData]))
     const normalized = ids.map(imgId => ({ id: imgId, image: existingMap.get(imgId) || '' }))
     entries.value = normalized
+
+    // Resolve signed view URLs for those without local previews
+    const viewer = await auth.getCurrentUserId().catch(() => '')
+    if (viewer) {
+      const urls = await Promise.all(
+        normalized.map(async (e) => {
+          if (e.image) return e.image
+          try {
+            const metaArr = await getFileById(e.id)
+            const meta = Array.isArray(metaArr) && metaArr[0]?.file ? metaArr[0].file : null
+            const object = meta?.object
+            if (object) {
+              const view = await getViewUrl(viewer, object, 3600)
+              if (view?.url) return view.url
+            }
+          } catch (err) {
+            // ignore; will return empty string
+          }
+          return ''
+        })
+      )
+      entries.value = entries.value.map((e, i) => ({ ...e, image: e.image || urls[i] }))
+    }
     // Also reflect in store (keep existing imageData if present)
     sessionStore.entries.splice(0, sessionStore.entries.length, ...ids.map(id => ({ id, imageData: existingMap.get(id) })))
   } catch (e: any) {
@@ -81,24 +108,68 @@ async function logBird() {
     try {
       const userId = await auth.getCurrentUserId()
       const userIdOrName = userId || username.value
-      
-      // Convert to base64 for now (TODO: upload to storage service)
+      const contentType = FORCE_OCTET ? 'application/octet-stream' : (file.type || 'application/octet-stream')
+
+      // 1) Get a signed upload URL
+      const { uploadUrl, object } = await requestUploadUrl(
+        userIdOrName,
+        file.name || `image-${Date.now()}`,
+        contentType,
+        900
+      )
+      console.debug('[SessionView] Signed upload URL origin:', (() => { try { return new URL(uploadUrl).origin } catch { return 'unknown' } })(), 'CT:', contentType, 'forceOctet?', FORCE_OCTET, 'noCors?', DEV_NO_CORS)
+      // 2) Upload the file via PUT (with fallback to avoid dev CORS preflight issues)
+      let uploaded = false
+      if (!DEV_NO_CORS) {
+        try {
+          const putRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': contentType },
+            body: file
+          })
+          uploaded = putRes.ok
+          if (!uploaded) {
+            const text = await putRes.text().catch(() => '')
+            console.warn('[SessionView] Upload not OK:', putRes.status, putRes.statusText, text)
+          }
+        } catch (err) {
+          console.warn('[SessionView] Upload error (likely CORS or network). Retrying with no-cors...', err)
+        }
+      }
+      if (!uploaded) {
+        try {
+          await fetch(uploadUrl, { method: 'PUT', body: file, mode: 'no-cors' as RequestMode })
+          uploaded = true
+        } catch (err2) {
+          console.error('[SessionView] Upload failed even with no-cors', err2)
+          uploaded = false
+        }
+      }
+      if (!uploaded) throw new Error('Upload failed. Check bucket CORS for PUT from your dev origin and matching Content-Type.')
+      // 3) Confirm upload to obtain File ID
+      const confirmed = await confirmUpload(
+        userIdOrName,
+        object,
+        contentType,
+        file.size
+      )
+      const fileId = confirmed.file
+      // 4) Associate the image with the session
+      await addEntry(userIdOrName, sessionId.value!, fileId)
+      // 5) Add a local preview from the selected file
       const reader = new FileReader()
-      reader.onload = async (event) => {
+      reader.onload = (event) => {
         const base64 = event.target?.result as string
-        
-        // For now, use a placeholder ID (backend may require actual image IDs)
-        const imageId = `img_${Date.now()}`
-        
-        await addEntry(userIdOrName, sessionId.value!, imageId)
-        
-        // Add to local entries for display
-        entries.value.push({ id: imageId, image: base64 })
-        sessionStore.addEntry(imageId, base64)
+        entries.value.push({ id: fileId, image: base64 })
+        sessionStore.addEntry(fileId, base64)
       }
       reader.readAsDataURL(file)
     } catch (e: any) {
-      error.value = e.message || 'Failed to log entry'
+      const msg = e?.message || 'Failed to log entry'
+      error.value = msg
+      if (msg.includes('Upload failed')) {
+        console.error('[SessionView] Hint: Configure GCS bucket CORS to allow PUT with Content-Type from http://localhost:5173 (and 127.0.0.1).')
+      }
     } finally {
       loading.value = false
     }
