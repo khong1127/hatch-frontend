@@ -17,9 +17,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const username = computed(() => auth.user?.username || '')
 
-// Tabs: 'search' | 'requests' | 'friends'
-const tab = ref<'search' | 'requests' | 'friends'>('search')
-
 // Search tab state
 const searchQuery = ref('')
 const searchLoading = ref(false)
@@ -190,15 +187,8 @@ function ensureAuthed() {
   if (!username.value) router.push('/auth')
 }
 
-// Initial loads when entering tabs
-watch(tab, (t) => {
-  ensureAuthed()
-  if (t === 'friends') refreshFriends()
-  if (t === 'requests') refreshRequests()
-  if (t === 'search') refreshSent()
-})
-
-// Default: preload friends and sent requests (used by isFriend/isSent in search)
+// Preload all sections since we now show a single combined view
+ensureAuthed()
 refreshFriends()
 refreshSent()
 refreshRequests()
@@ -207,15 +197,8 @@ refreshRequests()
 <template>
   <main class="friends">
     <h1>Friends</h1>
-
-    <div class="tabs">
-      <button :class="{ active: tab === 'search' }" @click="tab = 'search'">Search</button>
-      <button :class="{ active: tab === 'requests' }" @click="tab = 'requests'">Requests</button>
-      <button :class="{ active: tab === 'friends' }" @click="tab = 'friends'">Friends</button>
-    </div>
-
-    <!-- Search tab -->
-    <section v-if="tab === 'search'" class="panel">
+    <!-- Search at top -->
+    <section class="panel search-panel">
       <input v-model="searchQuery" placeholder="Search usernames" />
       <div v-if="searchLoading">Searching…</div>
       <div v-if="searchError" class="error">{{ searchError }}</div>
@@ -225,30 +208,34 @@ refreshRequests()
           <button v-if="isFriend(u.username)" disabled class="pill">Friend</button>
           <button v-else-if="isSent(u.username)" disabled class="pill">Sent</button>
           <button v-else-if="isReceivedFrom(u.username)" disabled class="pill">Request received</button>
-          <button v-else @click="doSendRequest(u.username)">Send friend request</button>
+          <button v-else @click="doSendRequest(u.username)" class="primary-btn">Send friend request</button>
         </li>
       </ul>
       <div v-else-if="!searchLoading && searchQuery" class="muted">No users found</div>
     </section>
-
-    <!-- Requests tab -->
-    <section v-else-if="tab === 'requests'" class="panel">
+    
+    <!-- Requests section -->
+    <section class="panel requests-panel">
+      <h2 class="section-title">Requests</h2>
+      <div class="section-divider" aria-hidden="true"></div>
       <div v-if="reqLoading">Loading requests…</div>
       <div v-if="reqError" class="error">{{ reqError }}</div>
       <ul v-if="received.length">
         <li v-for="r in received" :key="r.sender + '->' + r.receiver" class="row">
           <span>{{ r.sender }}</span>
           <div class="actions">
-            <button @click="doAccept(r.sender)">Accept</button>
-            <button @click="doDeny(r.sender)">Deny</button>
+            <button @click="doAccept(r.sender)" class="primary-btn">Accept</button>
+            <button @click="doDeny(r.sender)" class="danger-btn">Decline</button>
           </div>
         </li>
       </ul>
       <div v-else-if="!reqLoading" class="muted">No friend requests at the moment</div>
     </section>
-
-    <!-- Friends tab -->
-    <section v-else class="panel">
+    
+    <!-- Friends section -->
+    <section class="panel">
+      <h2 class="section-title">Friends</h2>
+      <div class="section-divider" aria-hidden="true"></div>
       <div v-if="friendsLoading">Loading friends…</div>
       <div v-if="friendsError" class="error">{{ friendsError }}</div>
       <ul v-if="friends.length">
@@ -264,10 +251,10 @@ refreshRequests()
 
 <style scoped>
 .friends { padding: 2rem; display: grid; gap: 1rem; }
-.tabs { display: flex; gap: 0.5rem; }
-.tabs button { border: 1px solid var(--color-border); background: transparent; padding: 0.25rem 0.5rem; }
-.tabs .active { background: var(--color-background-mute); }
 .panel { display: grid; gap: 0.5rem; }
+.search-panel { margin-bottom: 1rem; }
+.section-title { font-size: 1.1rem; font-weight: 600; }
+.section-divider { height: 1px; background: var(--color-border); margin: 0.25rem 0 0.5rem; }
 .row { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; }
 .actions { display: flex; gap: 0.5rem; }
 .pill { opacity: 0.7; font-size: 0.9em; }
@@ -275,6 +262,15 @@ refreshRequests()
 .muted { opacity: 0.8; }
 .inline { display: flex; gap: 0.5rem; align-items: center; }
 input { max-width: 300px; padding: 0.25rem 0.5rem; border: 1px solid var(--color-border); }
+.primary-btn { padding: 0.28rem 0.7rem; border: 1px solid #8b6a45; background: #8b6a45; color: #ffffff; border-radius: 9999px; cursor: pointer; font-weight: 400; line-height: 1; transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease; }
+.primary-btn:hover { background: #7a5c3c; }
+.primary-btn:active { transform: translateY(1px); }
+.primary-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(139, 106, 69, 0.25); }
+.requests-panel { margin-bottom: 1.5rem; }
+.danger-btn { padding: 0.28rem 0.7rem; border: 1px solid #b65959; background: #b65959; color: #ffffff; border-radius: 9999px; cursor: pointer; font-weight: 400; line-height: 1; transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease; }
+.danger-btn:hover { background: #a14b4b; }
+.danger-btn:active { transform: translateY(1px); }
+.danger-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(182, 89, 89, 0.25); }
 .delete-btn { color: #dc2626; border-color: #dc2626; background: transparent; padding: 0.25rem 0.75rem; cursor: pointer; border: 1px solid; border-radius: 4px; }
 .delete-btn:hover { background: #fef2f2; }
 </style>
