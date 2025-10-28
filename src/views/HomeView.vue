@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { getFriends, getPostsByAuthor, getPostById, getAllUsers } from '@/services/api'
@@ -17,6 +17,56 @@ const feed = ref<Post[]>([])
 const loading = ref(false)
 const error = ref('')
 const route = useRoute()
+
+// Lock each post box height to the height of the left column (image + nav) at initial render,
+// including the container's vertical padding and borders so the outer box visually matches the left.
+const boxHeights = ref<Record<string, number>>({})
+const heightObservers = new Map<string, ResizeObserver>()
+function lockBoxHeight(id: string, el: any) {
+  if (!el) return
+  if (boxHeights.value[id]) return
+  const container = el as HTMLElement
+  // Wait for the left column to exist and render
+  const left = container.querySelector('.box-left') as HTMLElement | null
+  if (!left) {
+    requestAnimationFrame(() => lockBoxHeight(id, el))
+    return
+  }
+  // Helper to compute and set height from the left column immediately
+  const computeAndSet = () => {
+    const rect = left.getBoundingClientRect()
+    let h = Math.ceil(rect.height)
+    if (h <= 0) return false
+    const cs = getComputedStyle(container)
+    const padTop = parseFloat(cs.paddingTop || '0')
+    const padBottom = parseFloat(cs.paddingBottom || '0')
+    const borderTop = parseFloat(cs.borderTopWidth || '0')
+    const borderBottom = parseFloat(cs.borderBottomWidth || '0')
+    h += padTop + padBottom + borderTop + borderBottom
+    if (h > 0) {
+      boxHeights.value = { ...boxHeights.value, [id]: h }
+      return true
+    }
+    return false
+  }
+
+  // Try immediate measurement first; if not ready, observe for first non-zero size
+  if (computeAndSet()) return
+
+  // Observe left column size until we get a non-zero height, then lock and disconnect
+  const ro = new ResizeObserver(() => {
+    if (computeAndSet()) {
+      ro.disconnect()
+      heightObservers.delete(id)
+    }
+  })
+  ro.observe(left)
+  heightObservers.set(id, ro)
+}
+onBeforeUnmount(() => {
+  heightObservers.forEach(ro => ro.disconnect())
+  heightObservers.clear()
+})
 
 function startTrip() {
   router.push('/session')
@@ -122,7 +172,7 @@ onMounted(async () => {
       <p v-else>Sign in to start tracking your trips.</p>
       <div v-if="isAuthed" class="start-trip-section">
         <button @click="startTrip" class="start-trip-btn">
-          🦜 Start Trip
+          Start Trip
         </button>
       </div>
 
@@ -133,9 +183,33 @@ onMounted(async () => {
         <div v-else>
           <div v-if="!feed.length" class="empty">No posts yet. Publish your first post from a trip!</div>
           <div v-else class="posts">
-            <div v-for="p in feed" :key="p._id" class="post-with-comments">
-              <PostCard :post="p" :current-user="auth.user?.username || ''" />
-              <CommentThread :post-id="p._id" />
+            <div
+              v-for="p in feed"
+              :key="p._id"
+              class="post-box"
+              :style="boxHeights[p._id] ? { height: boxHeights[p._id] + 'px' } : undefined"
+              :ref="(el) => lockBoxHeight(p._id, el)"
+            >
+              <div class="box-left" style="--postcard-img-size: 100%">
+                <PostCard 
+                  :post="p" 
+                  :current-user="auth.user?.username || ''"
+                  :hide-author="true"
+                  :hide-meta="true"
+                  :hide-caption="true"
+                  :show-actions="false"
+                />
+              </div>
+              <div class="box-right">
+                <div class="caption-right" v-if="p.caption">{{ p.caption }}</div>
+                <div class="post-meta" v-if="p.createdAt">
+                  {{ new Date(p.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) }}
+                </div>
+                <h3 class="comments-title">Comments</h3>
+                <div class="comments-pane">
+                  <CommentThread :post-id="p._id" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -161,21 +235,24 @@ main {
 }
 
 .start-trip-btn {
-  padding: 1rem 3rem;
-  font-size: 1.5rem;
-  font-weight: bold;
-  background: var(--color-background-mute);
-  border: 2px solid var(--color-border);
-  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-size: 1.1rem;
+  font-weight: 400;
+  background: #8b6a45;
+  color: #ffffff;
+  border: 1px solid #8b6a45;
+  border-radius: 9999px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
 }
 
 .start-trip-btn:hover {
-  background: var(--color-background-soft);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: #7a5c3c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
+.start-trip-btn:active { transform: translateY(0); }
+.start-trip-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(139, 106, 69, 0.25); }
 
 h1 {
   font-size: 2rem;
@@ -189,6 +266,43 @@ p {
 }
 .feed { margin-top: 2rem; }
 .posts { display: grid; gap: 1rem; }
+.post-box {
+  --left-col: 420px;
+  --nav-h: 36px;
+  display: grid;
+  grid-template-columns: var(--left-col) 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-background);
+  align-items: stretch;
+  overflow: hidden;
+  position: relative;
+}
+.box-left { display: grid; align-content: start; }
+.box-right { display: grid; grid-template-rows: auto auto auto 1fr; gap: 0.5rem; min-height: 0; }
+.caption-right { text-align: left; font-size: 1.2rem; font-weight: 600; margin: 0.25rem 0 0; }
+.post-meta { text-align: left; font-size: 0.9rem; opacity: 0.7; margin-top: -0.25rem; }
+.comments-title { font-size: 0.95rem; font-weight: 600; margin: 0; text-align: left; opacity: 0.85; }
+.comments-pane {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: var(--color-background-soft);
+  min-height: 0;
+  scrollbar-gutter: stable both-edges;
+}
+/* Make scrollbar visible and tasteful (WebKit) */
+.comments-pane::-webkit-scrollbar { width: 10px; }
+.comments-pane::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 8px; }
+.comments-pane::-webkit-scrollbar-thumb { background: rgba(139, 106, 69, 0.6); border-radius: 8px; }
+.comments-pane::-webkit-scrollbar-thumb:hover { background: rgba(122, 92, 60, 0.8); }
+@media (max-width: 1000px) {
+  .post-box { grid-template-columns: 1fr; }
+  .box-right { grid-template-rows: auto auto auto; }
+}
 .error { color: red; }
 .loading { opacity: 0.8; }
 .empty { opacity: 0.7; text-align: center; }

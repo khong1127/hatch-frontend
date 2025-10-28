@@ -17,6 +17,8 @@ const props = defineProps<{
   currentUser?: string
   hideAuthor?: boolean
   showActions?: boolean
+  hideCaption?: boolean
+  hideMeta?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -57,7 +59,9 @@ watch(pageLength, (len) => {
 
 const createdLabel = computed(() => {
   const d = props.post.createdAt ? new Date(props.post.createdAt) : null
-  return d && !isNaN(d.getTime()) ? d.toLocaleString() : ''
+  return d && !isNaN(d.getTime())
+    ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : ''
 })
 
 const authorLabel = computed(() => {
@@ -88,7 +92,7 @@ onMounted(() => {
 
 <template>
   <article class="post-card">
-    <header class="post-header" v-if="!hideAuthor || createdLabel">
+    <header class="post-header" v-if="(!hideAuthor || createdLabel) && !hideMeta">
       <div class="author" v-if="!hideAuthor">{{ authorLabel }}</div>
       <div class="timestamp" v-if="createdLabel">{{ createdLabel }}</div>
     </header>
@@ -109,7 +113,7 @@ onMounted(() => {
         <button class="nav-btn" @click="next" :disabled="page >= pageLength" aria-label="Next image">›</button>
       </div>
     </div>
-    <p class="caption" v-if="post.caption">{{ post.caption }}</p>
+  <p class="caption" v-if="post.caption && !hideCaption">{{ post.caption }}</p>
     <div class="actions" v-if="showActions">
       <button @click="emit('edit', post._id)" class="action-btn edit-btn">Edit</button>
       <button @click="emit('delete', post._id)" class="action-btn delete-btn">Delete</button>
@@ -124,12 +128,12 @@ onMounted(() => {
 .author { font-weight: 600; }
 .timestamp { opacity: 0.7; font-size: 0.85rem; }
 .images { display: grid; gap: 0.5rem; justify-items: center; }
-.img-tile { position: relative; width: min(100%, 360px); aspect-ratio: 1; border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
+.img-tile { position: relative; width: var(--postcard-img-size, min(100%, 360px)); aspect-ratio: 1; border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
 .tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .placeholder { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 0.8rem; opacity: 0.7; border: 1px dashed var(--color-border); border-radius: 6px; }
 .placeholder.show { display: flex; }
 .img-pagination { justify-self: center; }
-.img-nav { display: flex; align-items: center; gap: 0.5rem; justify-content: center; }
+.img-nav { display: flex; align-items: center; gap: 0.5rem; justify-content: center; min-height: var(--img-nav-height, 36px); }
 .nav-btn { padding: 0.25rem 0.6rem; border: 1px solid var(--color-border); background: var(--color-background); border-radius: 6px; cursor: pointer; }
 .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .page-indicator { font-size: 0.9rem; opacity: 0.8; }

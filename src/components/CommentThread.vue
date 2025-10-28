@@ -15,6 +15,14 @@ const usersMap = ref<Record<string, string>>({}) // id -> username
 
 const newContent = ref('')
 const posting = ref(false)
+const warn = ref('')
+let warnTimer: any = null
+
+function showWarn(msg: string, ms = 2200) {
+  warn.value = msg
+  clearTimeout(warnTimer)
+  warnTimer = setTimeout(() => { warn.value = '' }, ms)
+}
 
 const editingId = ref<string | null>(null)
 const editingContent = ref('')
@@ -64,7 +72,10 @@ async function loadComments() {
 }
 
 async function submitNew() {
-  if (!newContent.value.trim()) return
+  if (!newContent.value.trim()) {
+    showWarn('Please enter a comment before posting')
+    return
+  }
   posting.value = true
   try {
     const userId = await auth.getCurrentUserId?.()
@@ -87,6 +98,11 @@ async function submitNew() {
   } finally {
     posting.value = false
   }
+}
+
+function attemptSubmit() {
+  // Gate through submitNew so we get consistent warning behavior
+  void submitNew()
 }
 
 function startEdit(c: Comment) {
@@ -153,10 +169,12 @@ onMounted(async () => {
       <input
         v-model="newContent"
         placeholder="Type a comment"
-        @keyup.enter="submitNew"
+        @keyup.enter="attemptSubmit"
+        :class="{ invalid: !!warn }"
       />
-      <button @click="submitNew" :disabled="posting || !newContent.trim()">Post</button>
+      <button @click="attemptSubmit" :disabled="posting">Post</button>
     </div>
+    <div v-if="warn" class="warn" role="status" aria-live="polite">{{ warn }}</div>
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="loading" class="loading">Loading comments…</div>
 
@@ -164,7 +182,7 @@ onMounted(async () => {
       <li v-for="c in comments" :key="c._id" class="item">
         <div class="meta">
           <span class="author">{{ authorLabel(c.author) }}</span>
-          <span class="time" v-if="c.createdAt">{{ new Date(c.createdAt).toLocaleString() }}</span>
+          <span class="time" v-if="c.createdAt">{{ new Date(c.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) }}</span>
         </div>
 
         <div v-if="editingId === c._id" class="edit-row">
@@ -197,6 +215,8 @@ onMounted(async () => {
 .new-comment { display: flex; gap: 0.5rem; }
 .new-comment input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--color-border); border-radius: 4px; }
 .new-comment button { padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; }
+.new-comment input.invalid { border-color: #b65959; box-shadow: 0 0 0 3px rgba(182, 89, 89, 0.15); }
+.warn { color: #a14b4b; font-size: 0.9rem; }
 .list { display: grid; gap: 0.5rem; list-style: none; padding: 0; margin: 0; }
 .item { border: 1px solid var(--color-border); border-radius: 6px; padding: 0.5rem; display: grid; gap: 0.25rem; }
 .meta { display: flex; gap: 0.5rem; align-items: baseline; }
