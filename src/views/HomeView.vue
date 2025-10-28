@@ -14,6 +14,7 @@ const isAuthed = computed(() => !!auth.user)
 
 type Post = { _id: string; caption: string; images: string[]; author: string; createdAt?: string }
 const feed = ref<Post[]>([])
+const usersById = ref<Record<string, string>>({})
 const loading = ref(false)
 const error = ref('')
 const route = useRoute()
@@ -116,8 +117,15 @@ async function loadFeed() {
     try {
       const all = await getAllUsers()
       usersList = Array.isArray(all) ? all : []
+      // Build a quick lookup for userId -> username (fallback to id)
+      usersById.value = Object.fromEntries(
+        usersList
+          .filter((u: any) => u && u._id)
+          .map((u: any) => [u._id, u.username || u._id])
+      )
     } catch (e) {
       usersList = []
+      usersById.value = {}
     }
     const resolveId = (nameOrId: string) => {
       const match = usersList.find(u => u?.username === nameOrId)
@@ -125,6 +133,7 @@ async function loadFeed() {
     }
     
     const selfId = resolveId(self)
+    if (selfId && !usersById.value[selfId]) usersById.value[selfId] = self
     const friendIds = friends.map(resolveId)
     const authors = Array.from(new Set([selfId, ...friendIds]))
     console.log('[HomeView] Authors to fetch (IDs):', authors)
@@ -201,10 +210,13 @@ onMounted(async () => {
                 />
               </div>
               <div class="box-right">
-                <div class="caption-right" v-if="p.caption">{{ p.caption }}</div>
-                <div class="post-meta" v-if="p.createdAt">
-                  {{ new Date(p.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) }}
+                <div class="meta-row">
+                  <div class="author">{{ usersById[p.author] || p.author }}</div>
+                  <div class="timestamp" v-if="p.createdAt">
+                    {{ new Date(p.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) }}
+                  </div>
                 </div>
+                <div class="caption-right" v-if="p.caption">{{ p.caption }}</div>
                 <h3 class="comments-title">Comments</h3>
                 <div class="comments-pane">
                   <CommentThread :post-id="p._id" />
@@ -265,6 +277,9 @@ p {
 .box-left { display: grid; align-content: start; }
 .box-left .post-card { border: 0; padding: 0; background: transparent; border-radius: 0; }
 .box-right { display: grid; grid-template-rows: auto auto auto 1fr; gap: 0.5rem; min-height: 0; }
+.meta-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.meta-row .author { font-weight: 600; text-align: left; }
+.meta-row .timestamp { opacity: 0.7; font-size: 0.9rem; text-align: right; }
 .caption-right { 
   text-align: left; 
   font-size: 1.05rem; 
