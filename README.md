@@ -16,6 +16,10 @@ Alex decides to install the Hatch app with his other friends. They all register 
 
 ## Notes about User Journey Recording
 
+Old: https://drive.google.com/file/d/1nFfPtLyAO-kgpr5AhF005CgD3q-tNClP/view?usp=drive_link
+
+New: https://drive.google.com/file/d/1SAVLMPNKdDUR3nYDmUlxShfI7yH9O-Zt/view?usp=drive_link
+
 Notably, you will see that nothing is stopping a user from posting non-bird pictures. This can seem odd considering that the app is designed for bird logging, but here are some notes:
 
 1) Verifying that a picture is indeed of a bird is not a simple task. AI could be used for verification, but that is expensive.
