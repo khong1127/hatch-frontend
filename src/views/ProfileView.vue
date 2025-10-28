@@ -121,7 +121,7 @@ async function handleDelete(postId: string) {
 
 <template>
   <main class="profile">
-    <h1>{{ username }}'s Profile</h1>
+    <h1>{{ username }}</h1>
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="loading" class="loading">Loading posts…</div>
     <div v-else>
@@ -144,7 +144,16 @@ async function handleDelete(postId: string) {
 
 <style scoped>
 .profile { padding: 2rem; display: grid; gap: 1rem; }
-.posts { display: grid; gap: 1rem; }
+.posts { 
+  display: grid; 
+  gap: 1rem; 
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .posts {
+    grid-template-columns: 1fr;
+  }
+}
 .empty { opacity: 0.7; }
 .error { color: red; }
 .loading { opacity: 0.8; }

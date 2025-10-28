@@ -133,7 +133,7 @@ onMounted(() => {
 .nav-btn { padding: 0.25rem 0.6rem; border: 1px solid var(--color-border); background: var(--color-background); border-radius: 6px; cursor: pointer; }
 .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .page-indicator { font-size: 0.9rem; opacity: 0.8; }
-.caption { margin: 0.25rem 0 0; }
+.caption { margin: 0.25rem 0 0; text-align: center; }
 .actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
 .action-btn { padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; background: var(--color-background); }
 .action-btn:hover { background: var(--color-background-soft); }

@@ -28,6 +28,119 @@ onMounted(async () => {
 })
 
 const { urls: imageUrls } = useImageUrls(() => images.value || [], () => viewer.value)
+const displayItems = computed(() => {
+  const ids = images.value || []
+  const urls = imageUrls.value || []
+  const items = ids.map((id, idx) => ({ id, url: urls[idx] || '' }))
+  // Only show entries that resolved to a URL to avoid spurious placeholders
+  return items.filter(it => !!it.url)
+})
+
+function normalizeImagesFromPost(post: any): string[] {
+  try {
+    if (!post || typeof post !== 'object') return []
+    // Try a variety of common shapes
+    const candidates: any[] =
+      (Array.isArray(post.images) && post.images) ||
+      (Array.isArray(post.imageIds) && post.imageIds) ||
+      (Array.isArray(post.files) && post.files) ||
+      (Array.isArray(post.photos) && post.photos) ||
+      (Array.isArray(post.pictures) && post.pictures) ||
+      (Array.isArray(post.media) && post.media) ||
+      (typeof post.image === 'string' ? [post.image] : []) ||
+      []
+
+    // Map objects -> string IDs/URLs in best-effort order
+    const mapped = candidates
+      .map((item: any) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object') {
+          return (
+            item.file ||
+            item._id ||
+            item.id ||
+            item.object ||
+            item.image ||
+            ''
+          )
+        }
+        return ''
+      })
+      .filter((x: any): x is string => typeof x === 'string' && x.length > 0)
+
+    // De-duplicate while preserving order
+    const seen = new Set<string>()
+    const unique = mapped.filter((x) => (seen.has(x) ? false : (seen.add(x), true)))
+    return unique
+  } catch {
+    return []
+  }
+}
+
+function deepExtractImageIds(input: any, limit = 500): string[] {
+  // Best-effort recursive scan for image identifiers if usual fields are missing
+  const out: string[] = []
+  const seen = new Set<any>()
+  let count = 0
+  const keysPriority = new Set(['images','imageIds','files','photos','pictures','media','entries'])
+
+  function add(val: any) {
+    if (typeof val === 'string' && val.length > 0) {
+      // Avoid obviously wrong strings like long JSON
+      if (val.length < 512) out.push(val)
+    }
+  }
+
+  function pickFromObject(obj: any) {
+    return (
+      obj?.file || obj?._id || obj?.id || obj?.object || obj?.image || null
+    )
+  }
+
+  function walk(node: any) {
+    if (count > limit) return
+    if (!node || typeof node !== 'object') return
+    if (seen.has(node)) return
+    seen.add(node)
+
+    if (Array.isArray(node)) {
+      for (const it of node) {
+        if (count > limit) break
+        if (typeof it === 'string') { add(it); count++; continue }
+        if (it && typeof it === 'object') {
+          const pick = pickFromObject(it)
+          if (pick) { add(pick); count++; }
+          walk(it)
+        }
+      }
+      return
+    }
+
+    // Prefer scanning priority keys first
+    for (const k of Object.keys(node).sort((a,b) => Number(keysPriority.has(b)) - Number(keysPriority.has(a)))) {
+      if (count > limit) break
+      const v = (node as any)[k]
+      if (Array.isArray(v)) {
+        for (const it of v) {
+          if (count > limit) break
+          if (typeof it === 'string') { add(it); count++; continue }
+          if (it && typeof it === 'object') {
+            const pick = pickFromObject(it)
+            if (pick) { add(pick); count++; }
+            walk(it)
+          }
+        }
+      } else if (v && typeof v === 'object') {
+        walk(v)
+      }
+    }
+  }
+
+  try { walk(input) } catch { /* ignore */ }
+  // Deduplicate preserve order
+  const uniqSeen = new Set<string>()
+  return out.filter((x) => (uniqSeen.has(x) ? false : (uniqSeen.add(x), true)))
+}
 
 async function loadPost() {
   if (!postId.value) {
@@ -70,10 +183,24 @@ async function loadPost() {
       console.log('[EditPostView] Post keys:', post ? Object.keys(post) : 'null')
     }
     
-    // Very lenient check - accept anything with any field
+    // Very lenient check - accept anything with any field and normalize images
     if (post && typeof post === 'object' && Object.keys(post).length > 0) {
       caption.value = post.caption || ''
-      images.value = post.images || []
+      let normalized = normalizeImagesFromPost(post)
+      if (!normalized.length) {
+        // Fallback: try a deep extraction for legacy/mismatched shapes
+        normalized = deepExtractImageIds(post)
+      }
+      // Exclude obvious non-file identifiers like post id or author id
+      const exclude = new Set<string>([
+        (post as any)?._id,
+        (post as any)?.id,
+        (post as any)?.post,
+        (post as any)?.author,
+        postId.value
+      ].filter(Boolean))
+      normalized = normalized.filter((x) => !exclude.has(x))
+      images.value = normalized
       console.log('[EditPostView] Successfully set caption:', caption.value, 'images:', images.value)
       error.value = '' // Clear error
     } else {
@@ -123,10 +250,10 @@ onMounted(() => {
     <div v-if="loading" class="loading">Loading post…</div>
 
     <div v-else class="content">
-      <div class="entries-grid" v-if="images.length">
-        <div v-for="(img, idx) in images" :key="img" class="entry-card">
-          <img v-if="imageUrls[idx]" class="entry-img" :src="imageUrls[idx]" :alt="img" @error="(e: Event) => { const el = e.target as HTMLImageElement; el.style.display = 'none'; (el.nextElementSibling as HTMLElement)?.classList.add('show') }" />
-          <div class="placeholder" :class="{ show: !imageUrls[idx] }">{{ img }}</div>
+      <div class="entries-grid" v-if="displayItems.length">
+        <div v-for="item in displayItems" :key="item.id" class="entry-card">
+          <img class="entry-img" :src="item.url" :alt="item.id" @error="(e: Event) => { const el = e.target as HTMLImageElement; el.style.display = 'none'; (el.nextElementSibling as HTMLElement)?.classList.add('show') }" />
+          <div class="placeholder" :class="{ show: !item.url }">{{ item.id }}</div>
         </div>
       </div>
 
