@@ -115,8 +115,8 @@ onMounted(() => {
     </div>
   <p class="caption" v-if="post.caption && !hideCaption">{{ post.caption }}</p>
     <div class="actions" v-if="showActions">
-      <button @click="emit('edit', post._id)" class="action-btn edit-btn">Edit</button>
-      <button @click="emit('delete', post._id)" class="action-btn delete-btn">Delete</button>
+      <button @click="emit('edit', post._id)" class="btn btn-brown btn-sm">Edit</button>
+      <button @click="emit('delete', post._id)" class="btn btn-red btn-sm">Delete</button>
     </div>
   </article>
   
@@ -139,9 +139,5 @@ onMounted(() => {
 .page-indicator { font-size: 0.9rem; opacity: 0.8; }
 .caption { margin: 0.25rem 0 0; text-align: center; }
 .actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
-.action-btn { padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; background: var(--color-background); }
-.action-btn:hover { background: var(--color-background-soft); }
-.edit-btn { color: var(--color-text); }
-.delete-btn { color: #dc2626; border-color: #dc2626; }
-.delete-btn:hover { background: #fef2f2; }
+/* Use global .btn styles; remove local action button variants */
 </style>

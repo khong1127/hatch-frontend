@@ -208,7 +208,7 @@ refreshRequests()
           <button v-if="isFriend(u.username)" disabled class="pill">Friend</button>
           <button v-else-if="isSent(u.username)" disabled class="pill">Sent</button>
           <button v-else-if="isReceivedFrom(u.username)" disabled class="pill">Request received</button>
-          <button v-else @click="doSendRequest(u.username)" class="primary-btn">Send friend request</button>
+          <button v-else @click="doSendRequest(u.username)" class="btn btn-brown">Send friend request</button>
         </li>
       </ul>
       <div v-else-if="!searchLoading && searchQuery" class="muted">No users found</div>
@@ -224,8 +224,8 @@ refreshRequests()
         <li v-for="r in received" :key="r.sender + '->' + r.receiver" class="row">
           <span>{{ r.sender }}</span>
           <div class="actions">
-            <button @click="doAccept(r.sender)" class="primary-btn">Accept</button>
-            <button @click="doDeny(r.sender)" class="danger-btn">Decline</button>
+            <button @click="doAccept(r.sender)" class="btn btn-brown">Accept</button>
+            <button @click="doDeny(r.sender)" class="btn btn-red">Decline</button>
           </div>
         </li>
       </ul>
@@ -241,7 +241,7 @@ refreshRequests()
       <ul v-if="friends.length">
         <li v-for="f in friends" :key="f.username" class="row">
           <span>{{ f.username }}</span>
-          <button @click="doRemoveFriend(f.username)" class="delete-btn">Remove</button>
+          <button @click="doRemoveFriend(f.username)" class="btn btn-red">Remove</button>
         </li>
       </ul>
       <div v-else-if="!friendsLoading" class="muted">No friends yet. Search up your friends' usernames to get started!</div>
@@ -261,16 +261,11 @@ refreshRequests()
 .error { color: red; }
 .muted { opacity: 0.8; }
 .inline { display: flex; gap: 0.5rem; align-items: center; }
+.pill { opacity: 0.7; font-size: 0.9em; }
+.error { color: red; }
+.muted { opacity: 0.8; }
+.inline { display: flex; gap: 0.5rem; align-items: center; }
 input { max-width: 300px; padding: 0.25rem 0.5rem; border: 1px solid var(--color-border); }
-.primary-btn { padding: 0.28rem 0.7rem; border: 1px solid #8b6a45; background: #8b6a45; color: #ffffff; border-radius: 9999px; cursor: pointer; font-weight: 400; line-height: 1; transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease; }
-.primary-btn:hover { background: #7a5c3c; }
-.primary-btn:active { transform: translateY(1px); }
-.primary-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(139, 106, 69, 0.25); }
 .requests-panel { margin-bottom: 1.5rem; }
-.danger-btn { padding: 0.28rem 0.7rem; border: 1px solid #b65959; background: #b65959; color: #ffffff; border-radius: 9999px; cursor: pointer; font-weight: 400; line-height: 1; transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease; }
-.danger-btn:hover { background: #a14b4b; }
-.danger-btn:active { transform: translateY(1px); }
-.danger-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(182, 89, 89, 0.25); }
-.delete-btn { color: #dc2626; border-color: #dc2626; background: transparent; padding: 0.25rem 0.75rem; cursor: pointer; border: 1px solid; border-radius: 4px; }
-.delete-btn:hover { background: #fef2f2; }
+/* Removed local button variants in favor of global .btn classes */
 </style>

@@ -31,3 +31,40 @@ a,
     padding: 2rem;
   }
 }
+
+/* Global pill button styles for visual consistency */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 1.1rem; /* default (md) */
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease, opacity 0.15s ease;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Size variants */
+.btn-sm { padding: 0.3rem 0.75rem; font-size: 0.9rem; }
+.btn-lg { padding: 0.7rem 1.5rem; font-size: 1.1rem; }
+
+.btn-brown {
+  background: #8b6a45;
+  color: #ffffff;
+  border-color: #8b6a45;
+}
+.btn-brown:hover:not(:disabled) { background: #7a5c3c; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+.btn-brown:active:not(:disabled) { transform: translateY(0); }
+.btn-brown:focus { outline: none; box-shadow: 0 0 0 3px rgba(139, 106, 69, 0.25); }
+
+.btn-red {
+  background: #b65959; /* muted red */
+  color: #ffffff;
+  border-color: #b65959;
+}
+.btn-red:hover:not(:disabled) { background: #a14b4b; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+.btn-red:active:not(:disabled) { transform: translateY(0); }
+.btn-red:focus { outline: none; box-shadow: 0 0 0 3px rgba(182, 89, 89, 0.25); }

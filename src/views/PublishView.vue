@@ -42,9 +42,9 @@ async function publish() {
     console.log('[PublishView] Creating post with user:', userIdOrName, 'images:', imageIds, 'caption:', caption.value)
     const result = await createPost(userIdOrName, imageIds, caption.value)
     console.log('[PublishView] Create post result:', result)
-  // Clear session and go to profile; include a hint to retry-fetch
+  // Clear session and go to home; include a hint to retry-fetch there
   session.clear()
-  router.push('/profile?published=1')
+  router.push('/?published=1')
   } catch (e: any) {
     console.error('[PublishView] Failed to create post:', e)
     error.value = e.message || 'Failed to publish post'
@@ -72,7 +72,7 @@ async function publish() {
     </div>
 
     <div class="actions">
-      <button @click="publish" :disabled="publishing || !previewEntries.length">Publish</button>
+      <button class="btn btn-brown" @click="publish" :disabled="publishing || !previewEntries.length">Publish</button>
     </div>
   </main>
 </template>
@@ -89,5 +89,6 @@ async function publish() {
 .placeholder { display: grid; place-items: center; height: 100%; opacity: 0.6; }
 .caption-box textarea { width: 100%; min-height: 100px; padding: 0.5rem; border: 1px solid var(--color-border); }
 .actions { display: flex; justify-content: flex-end; }
+/* Publish button now uses global .btn styles */
 .error { color: red; }
 </style>

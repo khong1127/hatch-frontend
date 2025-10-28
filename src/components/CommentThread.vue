@@ -172,7 +172,7 @@ onMounted(async () => {
         @keyup.enter="attemptSubmit"
         :class="{ invalid: !!warn }"
       />
-      <button @click="attemptSubmit" :disabled="posting">Post</button>
+  <button @click="attemptSubmit" :disabled="posting" class="btn btn-brown">Post</button>
     </div>
     <div v-if="warn" class="warn" role="status" aria-live="polite">{{ warn }}</div>
     <div v-if="error" class="error">{{ error }}</div>
@@ -200,8 +200,8 @@ onMounted(async () => {
         <div v-else class="content-row">
           <p class="content">{{ c.content }}</p>
           <div class="actions" v-if="canEdit(c)">
-            <button @click="startEdit(c)">Edit</button>
-            <button @click="remove(c)" class="danger">Delete</button>
+            <button @click="startEdit(c)" class="btn btn-brown">Edit</button>
+            <button @click="remove(c)" class="btn btn-red">Delete</button>
           </div>
         </div>
       </li>
@@ -214,7 +214,7 @@ onMounted(async () => {
 .comments { display: grid; gap: 0.5rem; }
 .new-comment { display: flex; gap: 0.5rem; }
 .new-comment input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--color-border); border-radius: 4px; }
-.new-comment button { padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 4px; cursor: pointer; }
+/* .new-comment button uses global .btn styles */
 .new-comment input.invalid { border-color: #b65959; box-shadow: 0 0 0 3px rgba(182, 89, 89, 0.15); }
 .warn { color: #a14b4b; font-size: 0.9rem; }
 .list { display: grid; gap: 0.5rem; list-style: none; padding: 0; margin: 0; }
@@ -235,7 +235,7 @@ onMounted(async () => {
 .content-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .content { margin: 0; }
 .actions { display: flex; gap: 0.5rem; }
-.danger { color: #dc2626; border-color: #dc2626; }
+/* Delete now uses global .btn-red */
 .error { color: red; }
 .muted { opacity: 0.7; }
 </style>

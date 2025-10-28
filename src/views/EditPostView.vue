@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getPostById, editPost } from '@/services/api'
+import { getPostById, editPost, getPostsByAuthor, getAllUsers } from '@/services/api'
 import { useImageUrls } from '@/composables/useImageUrls'
 
 const router = useRouter()
@@ -35,6 +35,23 @@ const displayItems = computed(() => {
   // Only show entries that resolved to a URL to avoid spurious placeholders
   return items.filter(it => !!it.url)
 })
+
+function extractCaption(input: any): string {
+  try {
+    if (!input) return ''
+    // Prefer direct fields on the unwrapped post
+    const direct = input.caption || input.text || input.message || input.description
+    if (typeof direct === 'string' && direct.length) return direct
+    // Look into common wrappers just in case
+    const fromDetails = input.postDetails?.caption || input.postDetails?.text
+    if (typeof fromDetails === 'string' && fromDetails.length) return fromDetails
+    const fromPost = input.post?.caption || input.post?.text
+    if (typeof fromPost === 'string' && fromPost.length) return fromPost
+    return ''
+  } catch {
+    return ''
+  }
+}
 
 function normalizeImagesFromPost(post: any): string[] {
   try {
@@ -185,7 +202,8 @@ async function loadPost() {
     
     // Very lenient check - accept anything with any field and normalize images
     if (post && typeof post === 'object' && Object.keys(post).length > 0) {
-      caption.value = post.caption || ''
+      // Robustly extract caption using multiple possible fields/wrappers
+      caption.value = extractCaption(post) || extractCaption(res) || ''
       let normalized = normalizeImagesFromPost(post)
       if (!normalized.length) {
         // Fallback: try a deep extraction for legacy/mismatched shapes
@@ -203,6 +221,31 @@ async function loadPost() {
       images.value = normalized
       console.log('[EditPostView] Successfully set caption:', caption.value, 'images:', images.value)
       error.value = '' // Clear error
+
+      // Fallback: if caption still empty, try to locate via author posts listing
+      if (!caption.value) {
+        try {
+          // Try to determine author id/name from the post or fall back to current user
+          const authorFromPost = (post as any)?.author || (post as any)?.postDetails?.author || (post as any)?.post?.author || ''
+          let authorToQuery: string = authorFromPost || auth.user?.username || ''
+          // If we only have username, try to resolve to userId for better match
+          if (authorToQuery && authorToQuery === auth.user?.username) {
+            try {
+              const users = await getAllUsers()
+              const match = Array.isArray(users) ? users.find((u: any) => u?.username === authorToQuery) : null
+              authorToQuery = (match?._id || authorToQuery)
+            } catch { /* ignore */ }
+          }
+
+          const resRaw: any = await getPostsByAuthor(authorToQuery)
+          const arr = Array.isArray(resRaw) ? resRaw : (Array.isArray(resRaw?.posts) ? resRaw.posts : [])
+          // Normalize items: unwrap postDetails/post or objects directly
+          const items = arr.map((it: any) => it?.postDetails || it?.post || it)
+          const found = items.find((it: any) => (it?._id || it?.id) === postId.value)
+          const cap = extractCaption(found)
+          if (cap) caption.value = cap
+        } catch { /* ignore */ }
+      }
     } else {
       console.error('[EditPostView] Post object is invalid or empty:', post)
       error.value = `Post not found or invalid response. Got: ${JSON.stringify(res)}`

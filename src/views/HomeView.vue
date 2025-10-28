@@ -171,7 +171,7 @@ onMounted(async () => {
       <p v-if="isAuthed">Ready to log your bird watching adventures!</p>
       <p v-else>Sign in to start tracking your trips.</p>
       <div v-if="isAuthed" class="start-trip-section">
-        <button @click="startTrip" class="start-trip-btn">
+        <button @click="startTrip" class="btn btn-brown btn-lg">
           Start Trip
         </button>
       </div>
@@ -234,25 +234,7 @@ main {
   margin: 1rem 0 2rem;
 }
 
-.start-trip-btn {
-  padding: 0.6rem 1.4rem;
-  font-size: 1.1rem;
-  font-weight: 400;
-  background: #8b6a45;
-  color: #ffffff;
-  border: 1px solid #8b6a45;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
-}
-
-.start-trip-btn:hover {
-  background: #7a5c3c;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-}
-.start-trip-btn:active { transform: translateY(0); }
-.start-trip-btn:focus { outline: none; box-shadow: 0 0 0 3px rgba(139, 106, 69, 0.25); }
+/* Start Trip now uses global .btn styles */
 
 h1 {
   font-size: 2rem;
@@ -282,7 +264,7 @@ p {
 }
 .box-left { display: grid; align-content: start; }
 .box-right { display: grid; grid-template-rows: auto auto auto 1fr; gap: 0.5rem; min-height: 0; }
-.caption-right { text-align: left; font-size: 1.2rem; font-weight: 600; margin: 0.25rem 0 0; }
+.caption-right { text-align: left; font-size: 1.05rem; font-weight: 600; margin: 0.25rem 0 0; }
 .post-meta { text-align: left; font-size: 0.9rem; opacity: 0.7; margin-top: -0.25rem; }
 .comments-title { font-size: 0.95rem; font-weight: 600; margin: 0; text-align: left; opacity: 0.85; }
 .comments-pane {
