@@ -117,6 +117,10 @@ async function handleDelete(postId: string) {
     error.value = e.message || 'Failed to delete post'
   }
 }
+
+function openPost(postId: string) {
+  router.push(`/post/${postId}`)
+}
 </script>
 
 <template>
@@ -127,16 +131,20 @@ async function handleDelete(postId: string) {
     <div v-else>
       <div v-if="!posts.length" class="empty">No posts yet.</div>
       <div class="posts" v-else>
-        <PostCard 
-          v-for="p in posts" 
-          :key="p._id" 
-          :post="p" 
-          :current-user="auth.user?.username || ''" 
-          :hide-author="true"
-          :show-actions="true"
-          @edit="handleEdit"
-          @delete="handleDelete"
-        />
+        <div v-for="p in posts" :key="p._id" class="post-wrap">
+          <PostCard 
+            :post="p" 
+            :current-user="auth.user?.username || ''" 
+            :hide-author="true"
+            :show-actions="true"
+            @edit="handleEdit"
+            @delete="handleDelete"
+          >
+            <template #actions-extra>
+              <button class="btn btn-brown btn-sm" @click.stop="openPost(p._id)">See comments</button>
+            </template>
+          </PostCard>
+        </div>
       </div>
     </div>
   </main>
@@ -149,6 +157,14 @@ async function handleDelete(postId: string) {
   gap: 1rem; 
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.post-wrap { display: grid; }
+/* Make long captions scroll within the card to keep rows aligned */
+:deep(.caption) { max-height: 6rem; overflow: auto; scrollbar-gutter: stable; }
+/* Visible but subtle scrollbar for WebKit */
+:deep(.caption::-webkit-scrollbar) { width: 10px; }
+:deep(.caption::-webkit-scrollbar-track) { background: rgba(0,0,0,0.05); border-radius: 8px; }
+:deep(.caption::-webkit-scrollbar-thumb) { background: rgba(139, 106, 69, 0.6); border-radius: 8px; }
+:deep(.caption::-webkit-scrollbar-thumb:hover) { background: rgba(122, 92, 60, 0.8); }
 @media (max-width: 900px) {
   .posts {
     grid-template-columns: 1fr;

@@ -238,7 +238,7 @@ onMounted(() => {
 
     <div class="bottom-bar" v-if="sessionId">
       <button @click="logBird" :disabled="loading" class="log-btn">
-        📸 Log a Bird
+        Log a Bird
       </button>
     </div>
   </main>

@@ -233,7 +233,7 @@ onMounted(async () => {
 .cancel-btn:hover:not(:disabled) { background: #fef2f2; }
 .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .content-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
-.content { margin: 0; }
+.content { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; flex: 1 1 auto; min-width: 0; }
 .actions { display: flex; gap: 0.5rem; }
 /* Delete now uses global .btn-red */
 .error { color: red; }

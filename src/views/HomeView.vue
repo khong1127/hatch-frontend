@@ -263,8 +263,28 @@ p {
   position: relative;
 }
 .box-left { display: grid; align-content: start; }
+.box-left .post-card { border: 0; padding: 0; background: transparent; border-radius: 0; }
 .box-right { display: grid; grid-template-rows: auto auto auto 1fr; gap: 0.5rem; min-height: 0; }
-.caption-right { text-align: left; font-size: 1.05rem; font-weight: 600; margin: 0.25rem 0 0; }
+.caption-right { 
+  text-align: left; 
+  font-size: 1.05rem; 
+  font-weight: 600; 
+  margin: 0.25rem 0 0; 
+  padding: 0; /* ensure no visual indent */
+  white-space: pre-wrap; 
+  overflow-wrap: anywhere; 
+  word-break: break-word; 
+  /* Prevent very long captions from squeezing the comments area */
+  max-height: 6.5rem; 
+  overflow: auto; 
+  /* Reserve gutter only on the scrollbar side (right in LTR) so left edge aligns */
+  scrollbar-gutter: stable;
+}
+/* Tasteful visible scrollbar for long captions (WebKit) */
+.caption-right::-webkit-scrollbar { width: 10px; }
+.caption-right::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 8px; }
+.caption-right::-webkit-scrollbar-thumb { background: rgba(139, 106, 69, 0.6); border-radius: 8px; }
+.caption-right::-webkit-scrollbar-thumb:hover { background: rgba(122, 92, 60, 0.8); }
 .post-meta { text-align: left; font-size: 0.9rem; opacity: 0.7; margin-top: -0.25rem; }
 .comments-title { font-size: 0.95rem; font-weight: 600; margin: 0; text-align: left; opacity: 0.85; }
 .comments-pane {

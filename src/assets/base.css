@@ -30,8 +30,9 @@
   --color-background-soft: #dae1dd;
   --color-background-mute: #d1d8d4;
 
-  --color-border: var(--vt-c-divider-light-2);
-  --color-border-hover: var(--vt-c-divider-light-1);
+  /* Slightly darken borders for more definition */
+  --color-border: rgba(60, 60, 60, 0.25);
+  --color-border-hover: rgba(60, 60, 60, 0.29);
 
   --color-heading: var(--vt-c-text-light-1);
   --color-text: var(--vt-c-text-light-1);
@@ -46,8 +47,9 @@
     --color-background-soft: #dae1dd;
     --color-background-mute: #d1d8d4;
 
-    --color-border: var(--vt-c-divider-light-2);
-    --color-border-hover: var(--vt-c-divider-light-1);
+  /* Keep the same slight darkening in dark mode to maintain brand consistency */
+  --color-border: rgba(60, 60, 60, 0.18);
+  --color-border-hover: rgba(60, 60, 60, 0.29);
 
     --color-heading: var(--vt-c-text-light-1);
     --color-text: var(--vt-c-text-light-1);

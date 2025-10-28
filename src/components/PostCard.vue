@@ -115,15 +115,20 @@ onMounted(() => {
     </div>
   <p class="caption" v-if="post.caption && !hideCaption">{{ post.caption }}</p>
     <div class="actions" v-if="showActions">
-      <button @click="emit('edit', post._id)" class="btn btn-brown btn-sm">Edit</button>
-      <button @click="emit('delete', post._id)" class="btn btn-red btn-sm">Delete</button>
+      <div class="left">
+        <slot name="actions-extra"></slot>
+      </div>
+      <div class="right">
+        <button @click.stop="emit('edit', post._id)" class="btn btn-brown btn-sm">Edit</button>
+        <button @click.stop="emit('delete', post._id)" class="btn btn-red btn-sm">Delete</button>
+      </div>
     </div>
   </article>
   
 </template>
 
 <style scoped>
-.post-card { border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem; display: grid; gap: 0.5rem; }
+.post-card { border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem; display: grid; gap: 0.5rem; height: 100%; }
 .post-header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .author { font-weight: 600; }
 .timestamp { opacity: 0.7; font-size: 0.85rem; }
@@ -137,7 +142,8 @@ onMounted(() => {
 .nav-btn { padding: 0.25rem 0.6rem; border: 1px solid var(--color-border); background: var(--color-background); border-radius: 6px; cursor: pointer; }
 .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .page-indicator { font-size: 0.9rem; opacity: 0.8; }
-.caption { margin: 0.25rem 0 0; text-align: center; }
-.actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
-/* Use global .btn styles; remove local action button variants */
+.caption { margin: 0.25rem 0 0; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.actions { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+.actions .left, .actions .right { display: flex; gap: 0.5rem; align-items: center; }
+/* Uses global .btn styles */
 </style>

@@ -7,6 +7,7 @@ import FriendsView from '@/views/FriendsView.vue'
 import SessionView from '@/views/SessionView.vue'
 import PublishView from '@/views/PublishView.vue'
 import EditPostView from '@/views/EditPostView.vue'
+import PostDetailView from '@/views/PostDetailView.vue'
 import { useSessionStore } from '@/stores/session'
 
 const router = createRouter({
@@ -43,6 +44,11 @@ const router = createRouter({
       component: EditPostView
     },
     {
+      path: '/post/:id',
+      name: 'post-detail',
+      component: PostDetailView
+    },
+    {
       path: '/auth',
       name: 'auth',
       component: AuthView
@@ -58,7 +64,7 @@ router.beforeEach((to) => {
   if ((to.path === '/profile' || to.path === '/friends' || to.path === '/session') && !user) {
     return { path: '/auth', query: { redirect: to.fullPath }, hash: to.hash }
   }
-  if ((to.path === '/publish' || to.path.startsWith('/edit-post')) && !user) {
+  if ((to.path === '/publish' || to.path.startsWith('/edit-post') || to.path.startsWith('/post/')) && !user) {
     return { path: '/auth', query: { redirect: to.fullPath }, hash: to.hash }
   }
 
