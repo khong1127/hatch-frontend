@@ -1,5 +1,7 @@
 import { getToken } from '@/services/authToken'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+
 // In dev, use relative URLs so Vite's proxy handles /api requests (avoids CORS).
 // In prod, use the configured base URL.
 const API_BASE_URL = import.meta.env.DEV
