@@ -2,7 +2,7 @@
 
 **Purpose:** limit access to known users
 
----
+***
 
 ## API Endpoints
 
@@ -11,14 +11,17 @@
 **Description:** Registers a new user with a unique username and password.
 
 **Requirements:**
-- username to not already exist in the set of Users
+
+* username to not already exist in the set of Users
 
 **Effects:**
-- creates a new user of that username and password
-- adds that user to the set of users
-- returns the new user
+
+* creates a new user of that username and password
+* adds that user to the set of users
+* returns the new user
 
 **Request Body:**
+
 ```json
 {
   "username": "string",
@@ -27,6 +30,7 @@
 ```
 
 **Success Response Body (Action):**
+
 ```json
 {
   "user": "string"
@@ -34,25 +38,29 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
 }
 ```
 
----
+***
 
 ### POST /api/PasswordAuthentication/authenticate
 
 **Description:** Authenticates a user with the provided username and password.
 
 **Requirements:**
-- user of the argument username and password to exist in the set of Users
+
+* user of the argument username and password to exist in the set of Users
 
 **Effects:**
-- returns the corresponding User
+
+* returns the corresponding User
 
 **Request Body:**
+
 ```json
 {
   "username": "string",
@@ -61,6 +69,7 @@
 ```
 
 **Success Response Body (Action):**
+
 ```json
 {
   "user": "string"
@@ -68,25 +77,66 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
 }
 ```
 
----
+***
+
+### POST /api/PasswordAuthentication/changePassword
+
+**Description:** Changes the password for an existing user.
+
+**Requirements:**
+
+* user must exist
+
+**Effects:**
+
+* updates the password for the specified user
+
+**Request Body:**
+
+```json
+{
+  "user": "string",
+  "newPassword": "string"
+}
+```
+
+**Success Response Body (Action):**
+
+```json
+{}
+```
+
+**Error Response Body:**
+
+```json
+{
+  "error": "string"
+}
+```
+
+***
 
 ### POST /api/PasswordAuthentication/_getUserByUsername
 
 **Description:** Retrieves a user's full document by their username.
 
 **Requirements:**
-- (Implicit: username argument must be provided)
+
+* (Implicit: username argument must be provided)
 
 **Effects:**
-- returns an array containing the user document if found, otherwise an empty array.
+
+* returns an array containing the user document if found, otherwise an empty array.
 
 **Request Body:**
+
 ```json
 {
   "username": "string"
@@ -94,6 +144,7 @@
 ```
 
 **Success Response Body (Query):**
+
 ```json
 [
   {
@@ -107,25 +158,29 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
 }
 ```
 
----
+***
 
 ### POST /api/PasswordAuthentication/_getUserById
 
 **Description:** Retrieves a user's full document by their ID.
 
 **Requirements:**
-- (Implicit: id argument must be provided)
+
+* (Implicit: id argument must be provided)
 
 **Effects:**
-- returns an array containing the user document if found, otherwise an empty array.
+
+* returns an array containing the user document if found, otherwise an empty array.
 
 **Request Body:**
+
 ```json
 {
   "id": "string"
@@ -133,6 +188,7 @@
 ```
 
 **Success Response Body (Query):**
+
 ```json
 [
   {
@@ -146,30 +202,35 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
 }
 ```
 
----
+***
 
 ### POST /api/PasswordAuthentication/_getAllUsers
 
 **Description:** Retrieves all user documents in the system.
 
 **Requirements:**
-- true
+
+* true
 
 **Effects:**
-- returns an array of all user documents.
+
+* returns an array of all user documents.
 
 **Request Body:**
+
 ```json
 {}
 ```
 
 **Success Response Body (Query):**
+
 ```json
 [
   {
@@ -183,25 +244,29 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
 }
 ```
 
----
+***
 
 ### POST /api/PasswordAuthentication/_userExistsById
 
 **Description:** Checks if a user with the given ID exists.
 
 **Requirements:**
-- true
+
+* true
 
 **Effects:**
-- returns `[true]` if a user with the given ID exists, otherwise `[]`
+
+* returns an array containing `{"exists": true}` if a user with the given ID exists, otherwise an empty array `[]`
 
 **Request Body:**
+
 ```json
 {
   "user": "string"
@@ -209,6 +274,7 @@
 ```
 
 **Success Response Body (Query):**
+
 ```json
 [
   {
@@ -218,25 +284,29 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
 }
 ```
 
----
+***
 
 ### POST /api/PasswordAuthentication/_userExistsByUsername
 
 **Description:** Checks if a user with the given username exists.
 
 **Requirements:**
-- true
+
+* true
 
 **Effects:**
-- returns `[true]` if a user with the given username exists, otherwise `[]`
+
+* returns an array containing `{"exists": true}` if a user with the given username exists, otherwise an empty array `[]`
 
 **Request Body:**
+
 ```json
 {
   "username": "string"
@@ -244,6 +314,7 @@
 ```
 
 **Success Response Body (Query):**
+
 ```json
 [
   {
@@ -253,6 +324,7 @@
 ```
 
 **Error Response Body:**
+
 ```json
 {
   "error": "string"
@@ -265,7 +337,7 @@
 
 **Purpose:** enable discussion around shared posts
 
----
+***
 
 ## API Endpoints
 
@@ -303,7 +375,6 @@
   "error": "string"
 }
 ```
-
 ---
 
 ### POST /api/Commenting/deleteComment
@@ -336,7 +407,6 @@
   "error": "string"
 }
 ```
-
 ---
 
 ### POST /api/Commenting/editComment
@@ -371,7 +441,6 @@
   "error": "string"
 }
 ```
-
 ---
 
 ### POST /api/Commenting/_getComment
@@ -412,7 +481,6 @@
   "error": "string"
 }
 ```
-
 ---
 
 ### POST /api/Commenting/_getCommentsForPost
@@ -453,7 +521,6 @@
   "error": "string"
 }
 ```
-
 ---
 
 ### POST /api/Commenting/_getCommentsByAuthor
@@ -501,7 +568,7 @@
 
 **Purpose:** allow users to publish and share content for others to see
 
----
+***
 
 ## API Endpoints
 
@@ -540,9 +607,7 @@
   "error": "string"
 }
 ```
-
----
-
+***
 ### POST /api/Posting/delete
 
 **Description:** Deletes a post if the requesting user is its author.
@@ -573,9 +638,7 @@
   "error": "string"
 }
 ```
-
----
-
+***
 ### POST /api/Posting/edit
 
 **Description:** Edits the caption of an existing post if the requesting user is its author.
@@ -607,15 +670,52 @@
   "error": "string"
 }
 ```
+***
+### POST /api/Posting/getFeedForUser
 
----
+**Description:** Retrieves a feed of posts from the user's friends, sorted from most recent to oldest.
 
+**Requirements:**
+- user exists
+
+**Effects:**
+- returns an array of posts from the user's friends, sorted by most recent
+
+**Request Body:**
+```json
+{
+  "user": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "posts": [
+    {
+      "_id": "string",
+      "author": "string",
+      "caption": "string",
+      "images": ["string"],
+      "createdAt": "date-time"
+    }
+  ]
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+***
 ### POST /api/Posting/_getPostById
 
 **Description:** Retrieves the full details of a specific post by its ID.
 
 **Requirements:**
-- (Implicit: post ID must be provided)
+- post exists
 
 **Effects:**
 - Returns the details of a specific post as an array.
@@ -650,15 +750,13 @@
   "error": "string"
 }
 ```
-
----
-
+***
 ### POST /api/Posting/_getPostsByAuthor
 
 **Description:** Retrieves all posts authored by a specific user, sorted from most recent to oldest.
 
 **Requirements:**
-- (Implicit: user ID must be provided)
+- user exists
 
 **Effects:**
 - Returns all posts authored by a specific user from most recent to oldest.
@@ -700,22 +798,23 @@
 
 **Purpose:** allow users to add each other as friends to share information with
 
----
+***
 
 ## API Endpoints
 
 ### POST /api/Friending/sendRequest
 
-**Description:** Sends a friend request from one user to another.
+**Description:** Sends a friend request from a sender to a receiver.
 
 **Requirements:**
-- sender is not the receiver
-- friend request from sender to receiver or vice versa does not already exist
-- friendship between sender and receiver does not already exist
+- The sender cannot be the same as the receiver.
+- A friend request from the sender to the receiver must not already exist.
+- A friend request from the receiver to the sender must not already exist.
+- A friendship between the sender and receiver must not already exist.
 
 **Effects:**
-- creates a new friend request from sender to receiver
-- returns the new request's ID
+- Creates a new friend request from the sender to the receiver.
+- Returns the ID of the newly created friend request.
 
 **Request Body:**
 ```json
@@ -738,19 +837,18 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/acceptRequest
 
-**Description:** Accepts an existing friend request, creating a friendship.
+**Description:** Accepts an existing friend request, creating a mutual friendship.
 
 **Requirements:**
-- request from sender to receiver to exist
+- A friend request from the sender to the receiver must exist.
 
 **Effects:**
-- removes friend request
-- records friendship between sender and user
+- Removes the friend request between the sender and receiver.
+- Creates a new friendship between the sender and receiver.
 
 **Request Body:**
 ```json
@@ -771,18 +869,17 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/denyRequest
 
-**Description:** Denies an existing friend request.
+**Description:** Denies and removes an existing friend request.
 
 **Requirements:**
-- request from sender to receiver to exist
+- A friend request from the sender to the receiver must exist.
 
 **Effects:**
-- removes friend request
+- Removes the friend request between the sender and receiver.
 
 **Request Body:**
 ```json
@@ -803,18 +900,17 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/removeFriend
 
 **Description:** Removes an existing friendship between two users.
 
 **Requirements:**
-- friendship between user and to_be_removed_friend must exist
+- A friendship between the user and the `to_be_removed_friend` must exist.
 
 **Effects:**
-- removes friendship between user and to_be_removed_friend
+- Removes the friendship between the user and the `to_be_removed_friend`.
 
 **Request Body:**
 ```json
@@ -835,18 +931,17 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/_isFriends
 
 **Description:** Checks if two users are friends.
 
 **Requirements:**
-- user1 and user2 are valid User IDs (implicit, as concept doesn't manage User existence)
+- `user1` and `user2` must be valid user IDs.
 
 **Effects:**
-- returns an object with an 'areFriends' field containing an array with a single boolean indicating if users are friends
+- Returns an array containing a single object with a boolean field `areFriends` indicating the friendship status.
 
 **Request Body:**
 ```json
@@ -860,7 +955,7 @@
 ```json
 [
   {
-    "areFriends": "boolean"
+    "areFriends": true
   }
 ]
 ```
@@ -871,18 +966,17 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/_getFriends
 
-**Description:** Retrieves a list of all friends for a given user.
+**Description:** Retrieves a list of friend IDs for a given user.
 
 **Requirements:**
-- user is a valid User ID (implicit)
+- `user` must be a valid user ID.
 
 **Effects:**
-- returns an object with a 'friends' field containing an array of User IDs that are friends with the specified user
+- Returns an array of objects, where each object contains the ID of a friend in a `friend` field. Returns an empty array if the user has no friends.
 
 **Request Body:**
 ```json
@@ -895,7 +989,10 @@
 ```json
 [
   {
-    "friends": "string"
+    "friend": "string"
+  },
+  {
+    "friend": "string"
   }
 ]
 ```
@@ -906,18 +1003,17 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/_getSentFriendRequests
 
-**Description:** Retrieves a list of users to whom the sender has sent friend requests.
+**Description:** Retrieves a list of users to whom the given user has sent a friend request.
 
 **Requirements:**
-- sender is a valid User ID (implicit)
+- `sender` must be a valid user ID.
 
 **Effects:**
-- returns an object with a 'sentRequests' field containing an array of User IDs to whom the sender has sent requests
+- Returns an array of objects, where each object contains the ID of a request receiver in a `receiver` field. Returns an empty array if the user has no pending sent requests.
 
 **Request Body:**
 ```json
@@ -930,7 +1026,10 @@
 ```json
 [
   {
-    "sentRequests": "string"
+    "receiver": "string"
+  },
+  {
+    "receiver": "string"
   }
 ]
 ```
@@ -941,18 +1040,17 @@
   "error": "string"
 }
 ```
-
----
+***
 
 ### POST /api/Friending/_getReceivedFriendRequests
 
-**Description:** Retrieves a list of users who have sent friend requests to the receiver.
+**Description:** Retrieves a list of users who have sent a friend request to the given user.
 
 **Requirements:**
-- receiver is a valid User ID (implicit)
+- `receiver` must be a valid user ID.
 
 **Effects:**
-- returns an object with a 'receivedRequests' field containing an array of User IDs who have sent requests to the receiver
+- Returns an array of objects, where each object contains the ID of a request sender in a `sender` field. Returns an empty array if the user has no pending received requests.
 
 **Request Body:**
 ```json
@@ -965,7 +1063,10 @@
 ```json
 [
   {
-    "receivedRequests": "string"
+    "sender": "string"
+  },
+  {
+    "sender": "string"
   }
 ]
 ```
@@ -989,13 +1090,15 @@
 
 ### POST /api/SessionLogging/startSession
 
-**Description:** Creates a new session (active = true) under the specified user.
+**Description:** Creates a new, active session for the specified user.
 
 **Requirements:**
-- user to exist (as a valid ID in the system context)
+- The provided `user` must exist.
 
 **Effects:**
-- creates a new session (active = true) under the specified user, returning the ID of the new session.
+- Creates a new session associated with the `user`.
+- The new session is marked as `active`.
+- Returns the unique ID of the newly created session.
 
 **Request Body:**
 ```json
@@ -1017,23 +1120,19 @@
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/SessionLogging/addEntry
 
-**Description:** Adds the specified image to the set of images associated with an active session owned by the user.
+**Description:** Adds an image to an active session owned by the user.
 
 **Requirements:**
-- user to exist
-- session must exist
-- image must exist (as a valid ID)
-- session must be active
-- session must belong to the user
-- The image must not already be associated with the session.
+- The `user`, `session`, and `image` must all exist.
+- The session must be `active`.
+- The session must be owned by the `user`.
+- The image must not already be in the session's image set.
 
 **Effects:**
-- adds the specified image to the set of images associated with the session.
+- Adds the `image` ID to the set of images for the specified `session`.
 
 **Request Body:**
 ```json
@@ -1055,21 +1154,18 @@
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/SessionLogging/endSession
 
-**Description:** Sets the 'active' flag of the specified session to false.
+**Description:** Deactivates a session, preventing new entries from being added.
 
 **Requirements:**
-- user to exist
-- session must exist
-- session must belong to the user
-- Session must be active
+- The `user` and `session` must exist.
+- The session must be owned by the `user`.
+- The session must currently be `active`.
 
 **Effects:**
-- sets the 'active' flag of the specified session to false.
+- Sets the `active` status of the session to `false`.
 
 **Request Body:**
 ```json
@@ -1090,18 +1186,16 @@
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/SessionLogging/_getSessionsByUser
 
-**Description:** Returns a list of IDs for all sessions owned by the given user.
+**Description:** Retrieves all session IDs owned by a specific user.
 
 **Requirements:**
-- (Implicit: user ID must be provided)
+- A valid `user` ID must be provided.
 
 **Effects:**
-- Returns a list of IDs for all sessions owned by the given user.
+- Returns a list of objects, each containing a session ID owned by the user.
 
 **Request Body:**
 ```json
@@ -1114,7 +1208,7 @@
 ```json
 [
   {
-    "sessions": "string"
+    "session": "string"
   }
 ]
 ```
@@ -1125,18 +1219,16 @@
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/SessionLogging/_getSessionDetails
 
-**Description:** Returns the full details of a specific session, or an empty array if not found.
+**Description:** Retrieves the complete details for a specific session.
 
 **Requirements:**
-- (Implicit: session ID must be provided)
+- A valid `session` ID must be provided.
 
 **Effects:**
-- Returns an array containing the full details of a specific session, or an empty array if not found.
+- Returns an array containing a single object with the session's details, or an empty array if not found.
 
 **Request Body:**
 ```json
@@ -1149,14 +1241,12 @@
 ```json
 [
   {
-    "details": {
-      "_id": "string",
-      "owner": "string",
-      "images": [
-        "string"
-      ],
-      "active": "boolean"
-    }
+    "_id": "string",
+    "owner": "string",
+    "images": [
+      "string"
+    ],
+    "active": "boolean"
   }
 ]
 ```
@@ -1167,18 +1257,16 @@
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/SessionLogging/_getEntriesInSession
 
-**Description:** Returns the list of image entry IDs for a given session.
+**Description:** Retrieves all image IDs associated with a specific session.
 
 **Requirements:**
-- (Implicit: session ID must be provided)
+- A valid `session` ID must be provided.
 
 **Effects:**
-- Returns the list of image entry IDs for a given session.
+- Returns a list of objects, each containing an image ID from the session.
 
 **Request Body:**
 ```json
@@ -1191,7 +1279,7 @@
 ```json
 [
   {
-    "images": "string"
+    "image": "string"
   }
 ]
 ```
@@ -1202,18 +1290,16 @@
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/SessionLogging/_isSessionActive
 
-**Description:** Returns whether the specified session is active.
+**Description:** Checks if a specific session is currently active.
 
 **Requirements:**
-- (Implicit: session ID must be provided)
+- A valid `session` ID must be provided.
 
 **Effects:**
-- Returns an array containing a single boolean (true if the session is active, false if inactive) or an empty array if the session is not found.
+- Returns an array containing a single object with the session's active status, or an empty array if not found.
 
 **Request Body:**
 ```json
@@ -1242,7 +1328,7 @@
 
 **Purpose:** Manage user-owned files, supporting secure upload, storage, and retrieval of content.
 
----
+***
 
 ## API Endpoints
 
@@ -1251,18 +1337,15 @@
 **Description:** Requests a time-limited, signed URL for securely uploading a file to cloud storage.
 
 **Requirements:**
-
-*   `user` ID must be provided.
-*   `filename` must be provided.
-*   The `GCS_BUCKET` environment variable must be set on the server.
+- `user` ID must be provided.
+- `filename` must be provided.
+- The `GCS_BUCKET` environment variable must be set on the server.
 
 **Effects:**
-
-*   Generates a new, time-limited, signed PUT URL valid for uploading a file to the configured cloud storage bucket.
-*   Returns the `uploadUrl`, the target `bucket` name, and the generated `object` path for the file.
+- Generates a new, time-limited, signed PUT URL valid for uploading a file to the configured cloud storage bucket.
+- Returns the `uploadUrl`, the target `bucket` name, and the generated `object` path for the file.
 
 **Request Body:**
-
 ```json
 {
   "user": "string",
@@ -1273,7 +1356,6 @@
 ```
 
 **Success Response Body (Action):**
-
 ```json
 {
   "uploadUrl": "string",
@@ -1283,32 +1365,26 @@
 ```
 
 **Error Response Body:**
-
 ```json
 {
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/File/confirmUpload
 
 **Description:** Confirms a successful file upload by recording its metadata in the system.
 
 **Requirements:**
-
-*   `user` ID must be provided.
-*   `object` path (from `requestUploadUrl`) must be provided.
-*   The `GCS_BUCKET` environment variable must be set on the server.
+- `user` ID must be provided.
+- `object` path (from `requestUploadUrl`) must be provided.
+- The `GCS_BUCKET` environment variable must be set on the server.
 
 **Effects:**
-
-*   Creates a new `FileId` and stores a new file document in the database, associating it with the `user`, `bucket`, `object` path, `contentType`, `size`, and `createdAt` timestamp.
-*   Returns the newly created `file` ID and a direct public `url` to the stored file.
+- Creates a new `FileId` and stores a new file document in the database, associating it with the `user`, `bucket`, `object` path, `contentType`, `size`, and `createdAt` timestamp.
+- Returns the newly created `file` ID and a direct public `url` to the stored file.
 
 **Request Body:**
-
 ```json
 {
   "user": "string",
@@ -1319,7 +1395,6 @@
 ```
 
 **Success Response Body (Action):**
-
 ```json
 {
   "file": "string",
@@ -1328,33 +1403,27 @@
 ```
 
 **Error Response Body:**
-
 ```json
 {
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/File/getViewUrl
 
 **Description:** Provides a time-limited, signed URL for securely viewing an existing file.
 
 **Requirements:**
-
-*   `user` ID must be provided.
-*   `object` path must be provided.
-*   The `GCS_BUCKET` environment variable must be set on the server.
+- `user` ID must be provided.
+- `object` path must be provided.
+- The `GCS_BUCKET` environment variable must be set on the server.
 
 **Effects:**
-
-*   Generates a new, time-limited, signed GET URL for the specified `object` in the configured cloud storage bucket.
-*   Returns the generated `url` for viewing the file.
-*   *Note: This action does not perform access control; it assumes the caller is authorized to view the file.*
+- Generates a new, time-limited, signed GET URL for the specified `object` in the configured cloud storage bucket.
+- Returns the generated `url` for viewing the file.
+- *Note: This action does not perform access control; it assumes the caller is authorized to view the file.*
 
 **Request Body:**
-
 ```json
 {
   "user": "string",
@@ -1364,7 +1433,6 @@
 ```
 
 **Success Response Body (Action):**
-
 ```json
 {
   "url": "string"
@@ -1372,30 +1440,24 @@
 ```
 
 **Error Response Body:**
-
 ```json
 {
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/File/_getFileById
 
 **Description:** Retrieves the metadata for a specific file by its unique ID.
 
 **Requirements:**
-
-*   `file` ID must be provided.
+- `file` ID must be provided.
 
 **Effects:**
-
-*   Returns an array containing a single object, where the `file` key holds the `FileDocument` metadata if found.
-*   Returns an empty array if no file with the given ID exists.
+- Returns an array containing a single object, where the `file` key holds the `FileDocument` metadata if found.
+- Returns an empty array if no file with the given ID exists.
 
 **Request Body:**
-
 ```json
 {
   "file": "string"
@@ -1403,7 +1465,6 @@
 ```
 
 **Success Response Body (Query):**
-
 ```json
 [
   {
@@ -1421,30 +1482,24 @@
 ```
 
 **Error Response Body:**
-
 ```json
 {
   "error": "string"
 }
 ```
-
 ---
-
 ### POST /api/File/_getFilesByOwner
 
 **Description:** Retrieves a list of all file metadata documents owned by a specific user.
 
 **Requirements:**
-
-*   `user` ID must be provided.
+- `user` ID must be provided.
 
 **Effects:**
-
-*   Returns an array containing a single object. This object has a `files` key, whose value is an array of `FileDocument`s associated with the given `user`, sorted by creation date (newest first).
-*   Returns an array containing a single object with an empty `files` array if the user has no files.
+- Returns an array containing a single object. This object has a `files` key, whose value is an array of `FileDocument`s associated with the given `user`, sorted by creation date (newest first).
+- Returns an array containing a single object with an empty `files` array if the user has no files.
 
 **Request Body:**
-
 ```json
 {
   "user": "string"
@@ -1452,7 +1507,6 @@
 ```
 
 **Success Response Body (Query):**
-
 ```json
 [
   {
@@ -1465,24 +1519,13 @@
         "contentType": "string",
         "size": "number",
         "createdAt": "string"
-      },
-      {
-        "_id": "string",
-        "owner": "string",
-        "bucket": "string",
-        "object": "string",
-        "contentType": "string",
-        "size": "number",
-        "createdAt": "string"
       }
-      // ... more FileDocument objects
     ]
   }
 ]
 ```
 
 **Error Response Body:**
-
 ```json
 {
   "error": "string"

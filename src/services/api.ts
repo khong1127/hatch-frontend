@@ -67,14 +67,19 @@ export function getUserById(id: string) {
   )
 }
 
-export function getAllUsers() {
-  return apiRequest<Array<{ _id: string; username: string; password: string }>>(
+export async function getAllUsers(): Promise<Array<{ _id: string; username: string; password: string }>> {
+  const res = await apiRequest<any>(
     '/api/PasswordAuthentication/_getAllUsers',
-    {
-      method: 'POST',
-      body: JSON.stringify({})
-    }
+    { method: 'POST', body: JSON.stringify({}) }
   )
+  // Spec returns array of { user: {...} }, older impl may return flat array. Normalize to flat.
+  if (Array.isArray(res)) {
+    const flat = res
+      .map((item: any) => item?.user || item)
+      .filter((u: any) => u && typeof u === 'object')
+    return flat
+  }
+  return []
 }
 
 export function userExistsById(user: string) {
@@ -242,27 +247,50 @@ export function isFriends(user1: string, user2: string) {
   })
 }
 
-export function getFriends(user: string) {
-  return apiRequest<Array<{ friends: string }>>('/api/Friending/_getFriends', {
+export async function getFriends(user: string): Promise<{ friends: string[] }> {
+  const res = await apiRequest<any>('/api/Friending/_getFriends', {
     method: 'POST',
     body: JSON.stringify({ user })
   })
+  // Spec: returns array of { friend: string }. Normalize to { friends: string[] }
+  const arr = Array.isArray(res) ? res : []
+  const friends = arr
+    .map((it: any) => (typeof it === 'string' ? it : it?.friend))
+    .filter((v: any): v is string => typeof v === 'string')
+  return { friends }
 }
 
-export function getSentFriendRequests(sender: string) {
-  return apiRequest<Array<{ sentRequests: string }>>('/api/Friending/_getSentFriendRequests', {
+export async function getSentFriendRequests(sender: string): Promise<{ sentRequests: string[] }> {
+  const res = await apiRequest<any>('/api/Friending/_getSentFriendRequests', {
     method: 'POST',
     body: JSON.stringify({ sender })
   })
+  // Spec: returns array of { receiver: string }. Normalize to { sentRequests: string[] }
+  const arr = Array.isArray(res) ? res : []
+  const sentRequests = arr
+    .map((it: any) => (typeof it === 'string' ? it : it?.receiver))
+    .filter((v: any): v is string => typeof v === 'string')
+  return { sentRequests }
 }
 
-export function getReceivedFriendRequests(receiver: string) {
-  return apiRequest<Array<{ receivedRequests: string }>>(
+export async function getReceivedFriendRequests(receiver: string): Promise<{ receivedRequests: string[] }> {
+  const res = await apiRequest<any>(
     '/api/Friending/_getReceivedFriendRequests',
-    {
-      method: 'POST',
-      body: JSON.stringify({ receiver })
-    }
+    { method: 'POST', body: JSON.stringify({ receiver }) }
+  )
+  // Spec: returns array of { sender: string }. Normalize to { receivedRequests: string[] }
+  const arr = Array.isArray(res) ? res : []
+  const receivedRequests = arr
+    .map((it: any) => (typeof it === 'string' ? it : it?.sender))
+    .filter((v: any): v is string => typeof v === 'string')
+  return { receivedRequests }
+}
+
+// ---------- Posting Feed (new in updated spec) ----------
+export function getFeedForUser(user: string) {
+  return apiRequest<{ posts: Array<{ _id: string; author: string; caption: string; images: string[]; createdAt: string }> }>(
+    '/api/Posting/getFeedForUser',
+    { method: 'POST', body: JSON.stringify({ user }) }
   )
 }
 
@@ -339,5 +367,142 @@ export function getFileById(file: string) {
   return apiRequest<Array<{ file: { _id: string; owner: string; bucket: string; object: string; contentType: string; size: number; createdAt: string } }>>(
     '/api/File/_getFileById',
     { method: 'POST', body: JSON.stringify({ file }) }
+  )
+}
+
+// =========================
+// New sync-spec compliant APIs (session-based bodies)
+// These mirror endpoints defined in api_specs/syncspec.md and include the `session`
+// token in the request body as required by the updated spec.
+// =========================
+
+function postWithSession<T>(endpoint: string, body: Record<string, any> = {}, session?: string) {
+  const sess = session ?? getToken()
+  return apiRequest<T>(endpoint, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, session: sess })
+  })
+}
+
+// Commenting
+export function commentingAddCommentSync(params: { content: string; post: string; session?: string }) {
+  const { content, post, session } = params
+  return postWithSession<{ comment: string }>(
+    '/api/Commenting/addComment',
+    { content, post },
+    session
+  )
+}
+
+export function commentingDeleteCommentSync(params: { comment: string; session?: string }) {
+  const { comment, session } = params
+  return postWithSession<{ status: 'success' }>(
+    '/api/Commenting/deleteComment',
+    { comment },
+    session
+  )
+}
+
+// Friending
+export function friendingSendRequestSync(params: { toUsername: string; session?: string }) {
+  const { toUsername, session } = params
+  return postWithSession<{ friendRequest: string }>(
+    '/api/Friending/sendRequest',
+    { toUsername },
+    session
+  )
+}
+
+// Posting
+export function postingCreateSync(params: { content: string; session?: string }) {
+  const { content, session } = params
+  return postWithSession<{ post: string }>(
+    '/api/Posting/create',
+    { content },
+    session
+  )
+}
+
+export function postingDeleteSync(params: { post: string; session?: string }) {
+  const { post, session } = params
+  return postWithSession<{ status: 'success' }>(
+    '/api/Posting/delete',
+    { post },
+    session
+  )
+}
+
+// File
+export function fileRequestUploadUrlSync(params: { filename: string; contentType: string; session?: string }) {
+  const { filename, contentType, session } = params
+  return postWithSession<{ fileId: string; uploadUrl: string }>(
+    '/api/File/requestUploadUrl',
+    { filename, contentType },
+    session
+  )
+}
+
+export function fileConfirmUploadSync(params: { fileId: string; session?: string }) {
+  const { fileId, session } = params
+  return postWithSession<{ success: true }>(
+    '/api/File/confirmUpload',
+    { fileId },
+    session
+  )
+}
+
+export function fileGetFilesByOwnerSync(params?: { session?: string }) {
+  const session = params?.session
+  return postWithSession<{ files: any[] }>(
+    '/api/File/_getFilesByOwner',
+    {},
+    session
+  )
+}
+
+// SessionLogging
+export function sessionEndSync(params?: { session?: string }) {
+  const session = params?.session
+  return postWithSession<{ success: true }>(
+    '/api/SessionLogging/endSession',
+    {},
+    session
+  )
+}
+
+export function sessionIsActiveSync(params?: { session?: string }) {
+  const session = params?.session
+  return postWithSession<{ active: boolean }>(
+    '/api/SessionLogging/_isSessionActive',
+    {},
+    session
+  )
+}
+
+// PasswordAuthentication (queries)
+export function authGetUserByIdSync(params: { id: string; session?: string }) {
+  const { id, session } = params
+  return postWithSession<{ user: any }>(
+    '/api/PasswordAuthentication/_getUserById',
+    { id },
+    session
+  )
+}
+
+export function authGetUserByUsernameSync(params: { username: string; session?: string }) {
+  const { username, session } = params
+  return postWithSession<{ user: any }>(
+    '/api/PasswordAuthentication/_getUserByUsername',
+    { username },
+    session
+  )
+}
+
+export function authGetAllUsersSync(params?: { session?: string }) {
+  const session = params?.session
+  return postWithSession<{ users: any[] }>(
+    '/api/PasswordAuthentication/_getAllUsers',
+    {},
+    session
   )
 }
