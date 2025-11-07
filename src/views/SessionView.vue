@@ -2,7 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { startSession, addEntry, endSession, getEntriesInSession, requestUploadUrl, confirmUpload, getFileById, getViewUrl } from '@/services/api'
+import { startSession, addEntry, endSession, getEntriesInSession, requestUploadUrl, confirmUpload, getFileById, getViewUrl, fileRequestUploadUrlSync, fileConfirmUploadSync, sessionLoggingStartSessionSync, sessionLoggingAddEntrySync, sessionLoggingEndSessionSync, sessionLoggingGetEntriesInSessionSync } from '@/services/api'
+import { getToken } from '@/services/authToken'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
@@ -22,7 +23,17 @@ const DEV_NO_CORS = (import.meta as any).env?.VITE_UPLOAD_NO_CORS === '1' || (im
 async function loadEntriesFromBackend(id: string) {
   if (!username.value) return
   try {
-    const ids = await getEntriesInSession(username.value, id)
+    const session = getToken()
+    let ids: string[] = []
+    
+    // Use sync API if token exists, else fall back to legacy
+    if (session) {
+      const res = await sessionLoggingGetEntriesInSessionSync({ sessionId: id, session })
+      ids = res.entries?.map(e => e._id).filter(Boolean) || []
+    } else {
+      ids = await getEntriesInSession(username.value, id)
+    }
+    
     // Merge with any existing store entries to preserve image previews where available
     const existingMap = new Map(sessionStore.entries.map(e => [e.id, e.imageData]))
     const normalized = ids.map(imgId => ({ id: imgId, image: existingMap.get(imgId) || '' }))
@@ -69,7 +80,8 @@ async function initSession() {
     // Get user ID for backend calls
     const userId = await auth.getCurrentUserId()
     const userIdOrName = userId || username.value
-    console.log('[SessionView] User ID:', userIdOrName)
+    const session = getToken()
+    console.log('[SessionView] User ID:', userIdOrName, 'Has token:', !!session)
 
     // Try restore existing session first
     sessionStore.restore()
@@ -77,9 +89,20 @@ async function initSession() {
       sessionId.value = sessionStore.activeSessionId
     }
     if (!sessionId.value) {
-      const res = await startSession(userIdOrName)
-      sessionId.value = res.session
-      sessionStore.start(res.session)
+      // Use sync API if token exists, else fall back to legacy
+      if (session) {
+        const res = await sessionLoggingStartSessionSync({
+          startTime: Date.now(),
+          location: {}, // Could be enriched with geolocation later
+          session
+        })
+        sessionId.value = res.newSession
+        sessionStore.start(res.newSession)
+      } else {
+        const res = await startSession(userIdOrName)
+        sessionId.value = res.session
+        sessionStore.start(res.session)
+      }
     }
     if (sessionId.value) {
       await loadEntriesFromBackend(sessionId.value)
@@ -110,13 +133,25 @@ async function logBird() {
       const userIdOrName = userId || username.value
       const contentType = FORCE_OCTET ? 'application/octet-stream' : (file.type || 'application/octet-stream')
 
-      // 1) Get a signed upload URL
-      const { uploadUrl, object } = await requestUploadUrl(
-        userIdOrName,
-        file.name || `image-${Date.now()}`,
-        contentType,
-        900
-      )
+      // 1) Get a signed upload URL (prefer session-based API if token exists)
+      const session = getToken()
+      let uploadUrl = ''
+      let object: string | undefined
+      let fileIdFromRequest: string | undefined
+      if (session) {
+        const r = await fileRequestUploadUrlSync({ filename: file.name || `image-${Date.now()}`, contentType, session })
+        uploadUrl = r.uploadUrl
+        fileIdFromRequest = r.fileId
+      } else {
+        const r = await requestUploadUrl(
+          userIdOrName,
+          file.name || `image-${Date.now()}`,
+          contentType,
+          900
+        )
+        uploadUrl = r.uploadUrl
+        object = r.object
+      }
       console.debug('[SessionView] Signed upload URL origin:', (() => { try { return new URL(uploadUrl).origin } catch { return 'unknown' } })(), 'CT:', contentType, 'forceOctet?', FORCE_OCTET, 'noCors?', DEV_NO_CORS)
       // 2) Upload the file via PUT (with fallback to avoid dev CORS preflight issues)
       let uploaded = false
@@ -146,16 +181,33 @@ async function logBird() {
         }
       }
       if (!uploaded) throw new Error('Upload failed. Check bucket CORS for PUT from your dev origin and matching Content-Type.')
-      // 3) Confirm upload to obtain File ID
-      const confirmed = await confirmUpload(
-        userIdOrName,
-        object,
-        contentType,
-        file.size
-      )
-      const fileId = confirmed.file
+      // 3) Confirm upload to obtain or finalize File ID
+      let fileId: string
+      if (session && fileIdFromRequest) {
+        await fileConfirmUploadSync({ fileId: fileIdFromRequest, session })
+        fileId = fileIdFromRequest
+      } else {
+        const confirmed = await confirmUpload(
+          userIdOrName,
+          object!,
+          contentType,
+          file.size
+        )
+        fileId = confirmed.file
+      }
       // 4) Associate the image with the session
-      await addEntry(userIdOrName, sessionId.value!, fileId)
+      const sessionToken = getToken()
+      if (sessionToken) {
+        // Use sync API: pass sessionId (trip) and entry object containing the image
+        await sessionLoggingAddEntrySync({
+          sessionId: sessionId.value!,
+          entry: { image: fileId },
+          session: sessionToken
+        })
+      } else {
+        // Fall back to legacy API
+        await addEntry(userIdOrName, sessionId.value!, fileId)
+      }
       // 5) Add a local preview from the selected file
       const reader = new FileReader()
       reader.onload = (event) => {
@@ -188,11 +240,22 @@ async function finishSession() {
     if (!hasEntries) {
       const proceed = confirm("You haven't logged any birds yet. Are you sure you want to end the session?")
       if (!proceed) {
+        loading.value = false
         return
       }
     }
 
-    await endSession(userIdOrName, sessionId.value)
+    const sessionToken = getToken()
+    if (sessionToken) {
+      // Use sync API: pass sessionId (trip ID)
+      await sessionLoggingEndSessionSync({
+        sessionId: sessionId.value,
+        session: sessionToken
+      })
+    } else {
+      // Fall back to legacy API
+      await endSession(userIdOrName, sessionId.value)
+    }
 
     if (hasEntries) {
       // Go to Publish view only when there are entries to caption

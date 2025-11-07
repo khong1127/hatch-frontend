@@ -1,7 +1,5 @@
 import { getToken } from '@/services/authToken'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
-
 // In dev, use relative URLs so Vite's proxy handles /api requests (avoids CORS).
 // In prod, use the configured base URL.
 const API_BASE_URL = import.meta.env.DEV
@@ -72,12 +70,25 @@ export async function getAllUsers(): Promise<Array<{ _id: string; username: stri
     '/api/PasswordAuthentication/_getAllUsers',
     { method: 'POST', body: JSON.stringify({}) }
   )
-  // Spec returns array of { user: {...} }, older impl may return flat array. Normalize to flat.
-  if (Array.isArray(res)) {
-    const flat = res
-      .map((item: any) => item?.user || item)
+  // Normalize across possible backend shapes:
+  // 1) { users: [ { _id, username, password } | { user: {...} } ] }
+  // 2) [ { _id, username, password } | { user: {...} } ]
+  // 3) legacy: [ { user: {...} } ] or even { user: [ {...}, ... ] }
+  const toFlat = (arr: any[]): any[] =>
+    arr
+      .map((item: any) => (item && typeof item === 'object' && 'user' in item ? (item as any).user : item))
       .filter((u: any) => u && typeof u === 'object')
-    return flat
+
+  if (Array.isArray(res)) {
+    return toFlat(res)
+  }
+  if (res && typeof res === 'object') {
+    if (Array.isArray((res as any).users)) {
+      return toFlat((res as any).users)
+    }
+    if (Array.isArray((res as any).user)) {
+      return toFlat((res as any).user)
+    }
   }
   return []
 }
@@ -252,11 +263,24 @@ export async function getFriends(user: string): Promise<{ friends: string[] }> {
     method: 'POST',
     body: JSON.stringify({ user })
   })
-  // Spec: returns array of { friend: string }. Normalize to { friends: string[] }
-  const arr = Array.isArray(res) ? res : []
-  const friends = arr
-    .map((it: any) => (typeof it === 'string' ? it : it?.friend))
-    .filter((v: any): v is string => typeof v === 'string')
+  
+  // Handle multiple response formats:
+  // 1. Backend may return { friends: ["alice", "bob"] } (flat array of usernames/IDs)
+  // 2. Backend may return [{ friend: "alice" }, { friend: "bob" }] (array of objects per spec)
+  // 3. Backend may return ["alice", "bob"] (flat array directly)
+  
+  let friends: string[] = []
+  
+  if (res && typeof res === 'object' && 'friends' in res && Array.isArray(res.friends)) {
+    // Format 1: { friends: [...] }
+    friends = res.friends.filter((v: any) => typeof v === 'string')
+  } else if (Array.isArray(res)) {
+    // Format 2 or 3: array (either of objects or strings)
+    friends = res
+      .map((it: any) => (typeof it === 'string' ? it : it?.friend))
+      .filter((v: any): v is string => typeof v === 'string')
+  }
+  
   return { friends }
 }
 
@@ -265,11 +289,25 @@ export async function getSentFriendRequests(sender: string): Promise<{ sentReque
     method: 'POST',
     body: JSON.stringify({ sender })
   })
-  // Spec: returns array of { receiver: string }. Normalize to { sentRequests: string[] }
-  const arr = Array.isArray(res) ? res : []
-  const sentRequests = arr
-    .map((it: any) => (typeof it === 'string' ? it : it?.receiver))
-    .filter((v: any): v is string => typeof v === 'string')
+  // Handle multiple response formats:
+  // 1. { sentRequests: [...] } or similar property
+  // 2. [{ receiver: "alice" }, ...] (array of objects per spec)
+  // 3. ["alice", "bob"] (flat array)
+  
+  let sentRequests: string[] = []
+  
+  if (res && typeof res === 'object' && !Array.isArray(res)) {
+    // Object format - check for common property names
+    const prop = res.sentRequests || res.requests || res.receivers
+    if (Array.isArray(prop)) {
+      sentRequests = prop.filter((v: any) => typeof v === 'string')
+    }
+  } else if (Array.isArray(res)) {
+    sentRequests = res
+      .map((it: any) => (typeof it === 'string' ? it : it?.receiver))
+      .filter((v: any): v is string => typeof v === 'string')
+  }
+  
   return { sentRequests }
 }
 
@@ -278,11 +316,25 @@ export async function getReceivedFriendRequests(receiver: string): Promise<{ rec
     '/api/Friending/_getReceivedFriendRequests',
     { method: 'POST', body: JSON.stringify({ receiver }) }
   )
-  // Spec: returns array of { sender: string }. Normalize to { receivedRequests: string[] }
-  const arr = Array.isArray(res) ? res : []
-  const receivedRequests = arr
-    .map((it: any) => (typeof it === 'string' ? it : it?.sender))
-    .filter((v: any): v is string => typeof v === 'string')
+  // Handle multiple response formats:
+  // 1. { receivedRequests: [...] } or similar property
+  // 2. [{ sender: "alice" }, ...] (array of objects per spec)
+  // 3. ["alice", "bob"] (flat array)
+  
+  let receivedRequests: string[] = []
+  
+  if (res && typeof res === 'object' && !Array.isArray(res)) {
+    // Object format - check for common property names
+    const prop = res.receivedRequests || res.requests || res.senders
+    if (Array.isArray(prop)) {
+      receivedRequests = prop.filter((v: any) => typeof v === 'string')
+    }
+  } else if (Array.isArray(res)) {
+    receivedRequests = res
+      .map((it: any) => (typeof it === 'string' ? it : it?.sender))
+      .filter((v: any): v is string => typeof v === 'string')
+  }
+  
   return { receivedRequests }
 }
 
@@ -460,21 +512,66 @@ export function fileGetFilesByOwnerSync(params?: { session?: string }) {
   )
 }
 
-// SessionLogging
-export function sessionEndSync(params?: { session?: string }) {
-  const session = params?.session
-  return postWithSession<{ success: true }>(
+// SessionLogging (trip session management)
+export function sessionLoggingStartSessionSync(params: { startTime: number; location: object; session?: string }) {
+  const { startTime, location, session } = params
+  return postWithSession<{ newSession: string }>(
+    '/api/SessionLogging/startSession',
+    { startTime, location },
+    session
+  )
+}
+
+export function sessionLoggingAddEntrySync(params: { sessionId: string; entry: object; session?: string }) {
+  const { sessionId, entry, session } = params
+  return postWithSession<{ newEntry: string }>(
+    '/api/SessionLogging/addEntry',
+    { sessionId, entry },
+    session
+  )
+}
+
+export function sessionLoggingEndSessionSync(params: { sessionId: string; session?: string }) {
+  const { sessionId, session } = params
+  return postWithSession<{ status: 'ended' }>(
     '/api/SessionLogging/endSession',
+    { sessionId },
+    session
+  )
+}
+
+export function sessionLoggingGetSessionsByUserSync(params?: { session?: string }) {
+  const session = params?.session
+  return postWithSession<{ sessions: Array<{ _id: string; user: string; active: boolean }> }>(
+    '/api/SessionLogging/_getSessionsByUser',
     {},
     session
   )
 }
 
-export function sessionIsActiveSync(params?: { session?: string }) {
-  const session = params?.session
-  return postWithSession<{ active: boolean }>(
+export function sessionLoggingGetSessionDetailsSync(params: { sessionId: string; session?: string }) {
+  const { sessionId, session } = params
+  return postWithSession<{ sessionDetails: { _id: string; user: string; active: boolean } }>(
+    '/api/SessionLogging/_getSessionDetails',
+    { sessionId },
+    session
+  )
+}
+
+export function sessionLoggingGetEntriesInSessionSync(params: { sessionId: string; session?: string }) {
+  const { sessionId, session } = params
+  return postWithSession<{ entries: Array<{ _id: string }> }>(
+    '/api/SessionLogging/_getEntriesInSession',
+    { sessionId },
+    session
+  )
+}
+
+export function sessionLoggingIsSessionActiveSync(params: { sessionId: string; session?: string }) {
+  const { sessionId, session } = params
+  return postWithSession<{ isActive: boolean }>(
     '/api/SessionLogging/_isSessionActive',
-    {},
+    { sessionId },
     session
   )
 }

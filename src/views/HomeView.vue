@@ -2,7 +2,7 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { getFriends, getPostsByAuthor, getPostById, getAllUsers } from '@/services/api'
+import { getAllUsers, getFeedForUser, getFriends, getPostsByAuthor, getPostById } from '@/services/api'
 import PostCard from '@/components/PostCard.vue'
 import CommentThread from '@/components/CommentThread.vue'
 import { useRoute } from 'vue-router'
@@ -18,6 +18,27 @@ const usersById = ref<Record<string, string>>({})
 const loading = ref(false)
 const error = ref('')
 const route = useRoute()
+
+async function normalizePosts(raw: any): Promise<Post[]> {
+  if (!Array.isArray(raw)) return []
+  const items = raw.map((item: any) => item?.post || item?.postDetails || item)
+  const ids = items.filter((x: any) => typeof x === 'string') as string[]
+  const objs = items.filter((x: any) => x && typeof x === 'object') as Post[]
+  const resolved: Post[] = [...objs]
+  for (const id of ids) {
+    try {
+      const res = await getPostById(id)
+      let detail: any = null
+      if (res && typeof res === 'object') {
+        detail = (res as any).postDetails || (res as any).post || null
+      }
+      if (detail && detail.author) resolved.push(detail as Post)
+    } catch (e) {
+      // ignore
+    }
+  }
+  return resolved
+}
 
 // Lock each post box height to the height of the left column (image + nav) at initial render,
 // including the container's vertical padding and borders so the outer box visually matches the left.
@@ -73,28 +94,6 @@ function startTrip() {
   router.push('/session')
 }
 
-async function normalizePosts(raw: any): Promise<Post[]> {
-  if (!Array.isArray(raw)) return []
-  const items = raw.map((item: any) => item?.post || item?.postDetails || item)
-  const ids = items.filter((x: any) => typeof x === 'string') as string[]
-  const objs = items.filter((x: any) => x && typeof x === 'object') as Post[]
-  const resolved: Post[] = [...objs]
-  for (const id of ids) {
-    try {
-      const res = await getPostById(id)
-      let detail: any = null
-      // New response shape: { postDetails: {...} }
-      if (res && typeof res === 'object') {
-        detail = (res as any).postDetails || (res as any).post || null
-      }
-      if (detail && detail.author) resolved.push(detail as Post)
-    } catch (e) {
-      // ignore
-    }
-  }
-  return resolved
-}
-
 async function loadFeed() {
   if (!auth.user?.username) return
   loading.value = true
@@ -102,17 +101,8 @@ async function loadFeed() {
   try {
     const self = auth.user.username
     console.log('[HomeView] Loading feed for user:', self)
-    
-    // Fetch friends list, normalize to array of usernames/ids
-    const friendsRes = await getFriends(self)
-    console.log('[HomeView] Raw friends response:', friendsRes)
-    
-    // Handle {friends: [...]} response shape
-    const friendsList = (friendsRes as any)?.friends || []
-    const friends = Array.isArray(friendsList) ? friendsList.filter(Boolean) : []
-    console.log('[HomeView] Normalized friends:', friends)
 
-    // Resolve all usernames to IDs if available
+    // Resolve username -> userId mapping for author labels
     let usersList: any[] = []
     try {
       const all = await getAllUsers()
@@ -127,33 +117,99 @@ async function loadFeed() {
       usersList = []
       usersById.value = {}
     }
+
+    // Try new consolidated endpoint first, then merge with fallback to ensure friends are included
+    let consolidated: Post[] | null = null
+    try {
+      const selfMatch = usersList.find(u => u?.username === self)
+      const userIdOrName = selfMatch?._id || self
+      const res = await getFeedForUser(userIdOrName)
+      const posts: Post[] = Array.isArray((res as any)?.posts) ? (res as any).posts : []
+      if (Array.isArray(posts) && posts.length) {
+        consolidated = posts
+      } else {
+        throw new Error('empty feed')
+      }
+    } catch (e) {
+      console.warn('[HomeView] getFeedForUser failed or empty, will use per-author aggregation completely')
+    }
+
+    // Fallback: aggregate posts from self and friends
+    const isId = (s: string) => /^[a-f0-9]{24}$/i.test(s) || /^[a-f0-9-]{36}$/i.test(s)
     const resolveId = (nameOrId: string) => {
+      if (isId(nameOrId)) return nameOrId
       const match = usersList.find(u => u?.username === nameOrId)
       return match?._id || nameOrId
     }
-    
-    const selfId = resolveId(self)
+
+  const selfId = resolveId(self)
+  
+  let rawFriends: any[] = []
+  try {
+    const friendsRes = await getFriends(selfId)
+    rawFriends = (friendsRes as any)?.friends || []
+  } catch { rawFriends = [] }
+  if (!Array.isArray(rawFriends) || rawFriends.length === 0) {
+    // Fallback: try username in case backend expects names
+    try {
+      const friendsRes2 = await getFriends(self)
+      rawFriends = (friendsRes2 as any)?.friends || []
+    } catch { rawFriends = [] }
+  }
+    const friends = Array.isArray(rawFriends) ? rawFriends.filter(Boolean) : []
+
     if (selfId && !usersById.value[selfId]) usersById.value[selfId] = self
     const friendIds = friends.map(resolveId)
     const authors = Array.from(new Set([selfId, ...friendIds]))
-    console.log('[HomeView] Authors to fetch (IDs):', authors)
-    
-    const allPosts: Post[] = []
-    // Fetch posts per author sequentially to avoid hammering backend; could be parallel if safe
-    for (const author of authors) {
+
+    // Helper: fetch posts for an author trying both ID and username
+    const fetchAuthorPosts = async (authorKey: string): Promise<Post[]> => {
+      // Try provided key
       try {
-  const resRaw: any = await getPostsByAuthor(author)
-  console.log('[HomeView] Posts for author', author, ':', resRaw)
-  const res = Array.isArray(resRaw) ? resRaw : (Array.isArray(resRaw?.posts) ? resRaw.posts : [])
-  const mapped: Post[] = await normalizePosts(res)
-  console.log('[HomeView] Mapped posts:', mapped)
-        allPosts.push(...mapped)
+        const resRaw: any = await getPostsByAuthor(authorKey)
+        const res = Array.isArray(resRaw) ? resRaw : (Array.isArray(resRaw?.posts) ? resRaw.posts : [])
+        const mapped: Post[] = await normalizePosts(res)
+        if (mapped.length) return mapped
       } catch (e) {
-        // ignore individual author errors
+        // ignore attempt with primary key
       }
+      // If it looks like an ID, try username; else try ID
+      const looksLikeId = /^[a-f0-9]{24}$/i.test(authorKey) || /^[a-f0-9-]{36}$/i.test(authorKey)
+      const alt = looksLikeId
+        ? (usersList.find(u => u?._id === authorKey)?.username || authorKey)
+        : (usersList.find(u => u?.username === authorKey)?._id || authorKey)
+      if (alt !== authorKey) {
+        try {
+          const resRaw2: any = await getPostsByAuthor(alt)
+          const res2 = Array.isArray(resRaw2) ? resRaw2 : (Array.isArray(resRaw2?.posts) ? resRaw2.posts : [])
+          const mapped2: Post[] = await normalizePosts(res2)
+          if (mapped2.length) return mapped2
+        } catch (e) {
+          // ignore attempt with alt key
+        }
+      }
+      return []
     }
-    allPosts.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-    feed.value = allPosts
+
+    // Collect posts from self + friends
+    const aggregated: Post[] = []
+    for (const author of authors) {
+      const posts = await fetchAuthorPosts(author)
+      aggregated.push(...posts)
+    }
+
+    // If consolidated feed existed, merge with aggregated to ensure friends are present
+    const merged = [...(consolidated || []), ...aggregated]
+    // Deduplicate by _id
+    const seen = new Set<string>()
+    const unique = merged.filter(p => {
+      if (!p || !p._id) return false
+      if (seen.has(p._id)) return false
+      seen.add(p._id)
+      return true
+    })
+    unique.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    feed.value = unique
   } catch (e: any) {
     error.value = e.message || 'Failed to load feed'
   } finally {

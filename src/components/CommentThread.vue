@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { getCommentsForPost, addComment, editComment, deleteComment, getAllUsers } from '@/services/api'
+import { getToken } from '@/services/authToken'
+import { 
+  getCommentsForPost, 
+  addComment, 
+  editComment, 
+  deleteComment, 
+  getAllUsers,
+  commentingAddCommentSync,
+  commentingDeleteCommentSync
+} from '@/services/api'
 
 type Comment = { _id: string; author: string; content: string; post: string; createdAt?: string }
 
@@ -64,6 +73,10 @@ async function loadComments() {
     // newest first
     list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
     comments.value = list
+    if (comments.value.length === 0) {
+      // No comments is not an error; keep UI quiet and show "No comments yet."
+      error.value = ''
+    }
   } catch (e: any) {
     error.value = e.message || 'Failed to load comments'
   } finally {
@@ -78,15 +91,20 @@ async function submitNew() {
   }
   posting.value = true
   try {
-    const userId = await auth.getCurrentUserId?.()
-    const author = userId || currentUsername.value
     const content = newContent.value.trim()
-    await addComment(author, props.postId, content)
+    const session = getToken()
+    if (session) {
+      await commentingAddCommentSync({ content, post: props.postId, session })
+    } else {
+      const userId = await auth.getCurrentUserId?.()
+      const author = userId || currentUsername.value
+      await addComment(author, props.postId, content)
+    }
     newContent.value = ''
     // Optimistic append in case reload lags
     comments.value.unshift({
       _id: `tmp_${Date.now()}`,
-      author: author,
+      author: currentUsername.value,
       content,
       post: props.postId,
       createdAt: new Date().toISOString()
@@ -146,9 +164,14 @@ async function remove(c: Comment) {
   const ok = confirm('Are you sure you want to delete this comment?')
   if (!ok) return
   try {
-    const userId = await auth.getCurrentUserId?.()
-    const user = userId || currentUsername.value
-    await deleteComment(user, c._id)
+    const session = getToken()
+    if (session) {
+      await commentingDeleteCommentSync({ comment: c._id, session })
+    } else {
+      const userId = await auth.getCurrentUserId?.()
+      const user = userId || currentUsername.value
+      await deleteComment(user, c._id)
+    }
     await loadComments()
   } catch (e: any) {
     error.value = e.message || 'Failed to delete comment'

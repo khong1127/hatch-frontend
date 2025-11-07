@@ -12,6 +12,8 @@ import {
   getSentFriendRequests,
   getAllUsers
 } from '@/services/api'
+import { friendingSendRequestSync } from '@/services/api'
+import { getToken } from '@/services/authToken'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -36,6 +38,7 @@ const sent = ref<string[]>([])
 const friendsLoading = ref(false)
 const friendsError = ref('')
 const friends = ref<Array<{ username: string }>>([])
+const usersMap = ref<Record<string, string>>({}) // id -> username
 
 function isFriend(u: string) {
   return friends.value.some(f => f.username === u)
@@ -54,11 +57,38 @@ async function refreshFriends() {
   friendsLoading.value = true
   friendsError.value = ''
   try {
-    const res = await getFriends(username.value)
-    // Backend returns {friends: [...]}, not array of objects
-    const friendsList = (res as any)?.friends || []
-    const names = Array.isArray(friendsList) ? friendsList : []
-    friends.value = names.filter((v: any) => typeof v === 'string').map((n: string) => ({ username: n }))
+    // Load user map for resolving IDs -> usernames
+    let all: any[] = []
+    try {
+      all = await getAllUsers()
+      const map: Record<string, string> = {}
+      for (const u of Array.isArray(all) ? all : []) {
+        if (u && (u as any)._id && (u as any).username) map[(u as any)._id] = (u as any).username
+      }
+      usersMap.value = map
+    } catch { usersMap.value = {} }
+
+    const selfId = (Array.isArray(all) ? all : []).find((u: any) => u?.username === username.value)?._id || username.value
+    
+    // Try with ID first per spec; if empty, try username as fallback
+    let ids: string[] = []
+    try {
+      const res = await getFriends(selfId)
+      const friendsList = (res as any)?.friends || []
+      ids = Array.isArray(friendsList) ? friendsList.filter((v: any) => typeof v === 'string') : []
+    } catch { /* ignore */ }
+    if (!ids.length) {
+      try {
+        const res2 = await getFriends(username.value)
+        const friendsList2 = (res2 as any)?.friends || []
+        const ids2 = Array.isArray(friendsList2) ? friendsList2.filter((v: any) => typeof v === 'string') : []
+        ids = ids2
+      } catch { /* ignore */ }
+    }
+    
+    // Map to usernames
+    const names = ids.map(id => usersMap.value[id] || id)
+    friends.value = names.map((n: string) => ({ username: n }))
   } catch (e: any) {
     friendsError.value = e.message || 'Failed to load friends'
   } finally {
@@ -71,13 +101,39 @@ async function refreshRequests() {
   reqLoading.value = true
   reqError.value = ''
   try {
-    const res = await getReceivedFriendRequests(username.value)
-    // Backend returns {receivedRequests: ["alice", "bob"]}
-    const requestsList = (res as any)?.receivedRequests || []
-    const senders = Array.isArray(requestsList) ? requestsList : []
-    received.value = senders
-      .filter((v: any) => typeof v === 'string')
-      .map((sender: string) => ({ sender, receiver: username.value }))
+    // Ensure users map
+    if (Object.keys(usersMap.value).length === 0) {
+      try {
+        const all = await getAllUsers()
+        const map: Record<string, string> = {}
+        for (const u of Array.isArray(all) ? all : []) {
+          if (u && (u as any)._id && (u as any).username) map[(u as any)._id] = (u as any).username
+        }
+        usersMap.value = map
+      } catch { /* ignore */ }
+    }
+    // Resolve current user to ID and try both ID and username for compatibility
+    let selfId = username.value
+    try {
+      const all = await getAllUsers()
+      const match = Array.isArray(all) ? all.find((u: any) => u?.username === username.value) : null
+      selfId = match?._id || username.value
+    } catch { /* ignore */ }
+
+    let requestsList: any[] = []
+    try {
+      const res = await getReceivedFriendRequests(selfId)
+      requestsList = (res as any)?.receivedRequests || []
+    } catch { /* ignore */ }
+    if (!Array.isArray(requestsList) || requestsList.length === 0) {
+      try {
+        const res2 = await getReceivedFriendRequests(username.value)
+        requestsList = (res2 as any)?.receivedRequests || []
+      } catch { /* ignore */ }
+    }
+    const senders = Array.isArray(requestsList) ? requestsList.filter((v: any) => typeof v === 'string') : []
+    const mappedSenders = senders.map(id => usersMap.value[id] || id)
+    received.value = mappedSenders.map((sender: string) => ({ sender, receiver: username.value }))
   } catch (e: any) {
     reqError.value = e.message || 'Failed to load requests'
   } finally {
@@ -89,10 +145,37 @@ async function refreshSent() {
   if (!username.value) return
   sentLoading.value = true
   try {
-    const res = await getSentFriendRequests(username.value)
-    // Backend likely returns {sentRequests: ["alice", "bob"]}
-    const sentList = (res as any)?.sentRequests || []
-    sent.value = Array.isArray(sentList) ? sentList.filter((v: any) => typeof v === 'string') : []
+    // Ensure users map
+    if (Object.keys(usersMap.value).length === 0) {
+      try {
+        const all = await getAllUsers()
+        const map: Record<string, string> = {}
+        for (const u of Array.isArray(all) ? all : []) {
+          if (u && (u as any)._id && (u as any).username) map[(u as any)._id] = (u as any).username
+        }
+        usersMap.value = map
+      } catch { /* ignore */ }
+    }
+    // Resolve current user to ID and try both ID and username for compatibility
+    let selfId = username.value
+    try {
+      const all = await getAllUsers()
+      const match = Array.isArray(all) ? all.find((u: any) => u?.username === username.value) : null
+      selfId = match?._id || username.value
+    } catch { /* ignore */ }
+    let sentList: any[] = []
+    try {
+      const res = await getSentFriendRequests(selfId)
+      sentList = (res as any)?.sentRequests || []
+    } catch { /* ignore */ }
+    if (!Array.isArray(sentList) || sentList.length === 0) {
+      try {
+        const res2 = await getSentFriendRequests(username.value)
+        sentList = (res2 as any)?.sentRequests || []
+      } catch { /* ignore */ }
+    }
+    const ids = Array.isArray(sentList) ? sentList.filter((v: any) => typeof v === 'string') : []
+    sent.value = ids.map(id => usersMap.value[id] || id)
   } catch (_e: any) {
     sent.value = []
   } finally {
@@ -140,8 +223,13 @@ async function doSendRequest(target: string) {
   if (!username.value) return
   if (!target) return
   try {
-    await sendFriendRequest(username.value, target)
-    // Add to sent list immediately for instant UI feedback
+    const session = getToken()
+    if (session) {
+      // Sync-spec uses toUsername for session-authenticated send
+      await friendingSendRequestSync({ toUsername: target, session })
+    } else {
+      await sendFriendRequest(username.value, target)
+    }
     if (!sent.value.includes(target)) sent.value.push(target)
     refreshSent()
   } catch (e: any) {
@@ -257,10 +345,6 @@ refreshRequests()
 .section-divider { height: 1px; background: var(--color-border); margin: 0.25rem 0 0.5rem; }
 .row { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; }
 .actions { display: flex; gap: 0.5rem; }
-.pill { opacity: 0.7; font-size: 0.9em; }
-.error { color: red; }
-.muted { opacity: 0.8; }
-.inline { display: flex; gap: 0.5rem; align-items: center; }
 .pill { opacity: 0.7; font-size: 0.9em; }
 .error { color: red; }
 .muted { opacity: 0.8; }

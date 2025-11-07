@@ -67,8 +67,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const res = await getPostById(postId.value)
-    const raw = extractPost(res)
+    // Start a non-blocking fetch by ID and race with a short timeout to avoid visible timeouts
+    const byIdPromise = getPostById(postId.value).catch(() => null)
+    const res = await Promise.race<any>([
+      byIdPromise,
+      new Promise((resolve) => setTimeout(() => resolve(null), 1800))
+    ])
+    const raw = res ? extractPost(res) : null
     if (raw && typeof raw === 'object') {
       const img = normalizeImagesFromPost(raw)
       const p: Post = {
@@ -103,10 +108,47 @@ async function load() {
         } catch { /* ignore */ }
       }
     } else {
-      error.value = 'Post not found'
+      // Fallback quickly via author posts without showing a timeout error
+      try {
+        let authorToQuery: string = auth.user?.username || ''
+        if (authorToQuery && authorToQuery === auth.user?.username) {
+          try {
+            const users = await getAllUsers()
+            const match = Array.isArray(users) ? users.find((u: any) => u?.username === authorToQuery) : null
+            authorToQuery = (match?._id || authorToQuery)
+          } catch { /* ignore */ }
+        }
+        const resRaw: any = await getPostsByAuthor(authorToQuery)
+        const arr = Array.isArray(resRaw) ? resRaw : (Array.isArray(resRaw?.posts) ? resRaw.posts : [])
+        const items = arr.map((it: any) => it?.postDetails || it?.post || it)
+        const found = items.find((it: any) => (it?._id || it?.id) === postId.value)
+        if (found) {
+          const imgs = normalizeImagesFromPost(found)
+          post.value = {
+            _id: found._id || postId.value,
+            caption: found.caption || found.text || found.message || found.description || '',
+            images: Array.isArray(found.images) && found.images.length ? found.images : imgs,
+            author: found.author || auth.user?.username || '',
+            createdAt: found.createdAt
+          }
+          error.value = ''
+        } else {
+          // As a last resort, create a minimal shell so CommentThread can still load
+          post.value = { _id: postId.value, caption: '', images: [], author: auth.user?.username || '' }
+          error.value = ''
+        }
+      } catch {
+        // Create minimal shell and keep UI interactive
+        post.value = { _id: postId.value, caption: '', images: [], author: auth.user?.username || '' }
+        error.value = ''
+      }
     }
   } catch (e: any) {
-    error.value = e.message || 'Failed to load post'
+    // Do not surface fetch timeouts aggressively; keep page interactive
+    error.value = ''
+    if (!post.value) {
+      post.value = { _id: postId.value, caption: '', images: [], author: auth.user?.username || '' }
+    }
   } finally {
     loading.value = false
   }

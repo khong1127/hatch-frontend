@@ -31,9 +31,8 @@ const { urls: imageUrls } = useImageUrls(() => images.value || [], () => viewer.
 const displayItems = computed(() => {
   const ids = images.value || []
   const urls = imageUrls.value || []
-  const items = ids.map((id, idx) => ({ id, url: urls[idx] || '' }))
-  // Only show entries that resolved to a URL to avoid spurious placeholders
-  return items.filter(it => !!it.url)
+  // Show placeholders even when URL resolution failed so user can still see image IDs
+  return ids.map((id, idx) => ({ id, url: urls[idx] || '' }))
 })
 
 function extractCaption(input: any): string {
@@ -223,7 +222,7 @@ async function loadPost() {
       error.value = '' // Clear error
 
       // Fallback: if caption still empty, try to locate via author posts listing
-      if (!caption.value) {
+      if (!caption.value || images.value.length === 0) {
         try {
           // Try to determine author id/name from the post or fall back to current user
           const authorFromPost = (post as any)?.author || (post as any)?.postDetails?.author || (post as any)?.post?.author || ''
@@ -242,19 +241,92 @@ async function loadPost() {
           // Normalize items: unwrap postDetails/post or objects directly
           const items = arr.map((it: any) => it?.postDetails || it?.post || it)
           const found = items.find((it: any) => (it?._id || it?.id) === postId.value)
-          const cap = extractCaption(found)
-          if (cap) caption.value = cap
+          if (found) {
+            const cap = extractCaption(found)
+            if (cap && !caption.value) caption.value = cap
+            // If we still have no images, attempt extraction from found
+            if (images.value.length === 0) {
+              let ids = normalizeImagesFromPost(found)
+              if (!ids.length) ids = deepExtractImageIds(found)
+              // Exclude non-image ids as before
+              const exclude2 = new Set<string>([
+                (found as any)?._id,
+                (found as any)?.id,
+                (found as any)?.post,
+                (found as any)?.author,
+                postId.value
+              ].filter(Boolean))
+              ids = ids.filter((x) => !exclude2.has(x))
+              if (ids.length) images.value = ids
+            }
+          }
         } catch { /* ignore */ }
       }
     } else {
       console.error('[EditPostView] Post object is invalid or empty:', post)
-      error.value = `Post not found or invalid response. Got: ${JSON.stringify(res)}`
+      // Do not surface an error yet; try to recover via fallback first
+      await fallbackLoadFromAuthor()
+      // If still nothing meaningful, then show an error
+      if (!caption.value && images.value.length === 0) {
+        error.value = `Post not found or invalid response. Got: ${JSON.stringify(res)}`
+      } else {
+        error.value = ''
+      }
     }
   } catch (e: any) {
     console.error('[EditPostView] Failed to load post:', e)
-    error.value = e.message || 'Failed to load post'
+    // Do not show a transient timeout error; try fallback first
+    await fallbackLoadFromAuthor()
+    if (!caption.value && images.value.length === 0) {
+      error.value = e.message || 'Failed to load post'
+    } else {
+      error.value = ''
+    }
   } finally {
     loading.value = false
+  }
+}
+
+// Attempt to populate caption/images by scanning the author's posts when getPostById fails or is incomplete
+async function fallbackLoadFromAuthor() {
+  try {
+    let authorToQuery: string = auth.user?.username || ''
+    if (!authorToQuery) return
+    try {
+      const users = await getAllUsers()
+      const match = Array.isArray(users) ? users.find((u: any) => u?.username === authorToQuery) : null
+      authorToQuery = (match?._id || authorToQuery)
+    } catch { /* ignore id resolution */ }
+
+    const resRaw: any = await getPostsByAuthor(authorToQuery)
+    const arr = Array.isArray(resRaw) ? resRaw : (Array.isArray(resRaw?.posts) ? resRaw.posts : [])
+    const items = arr.map((it: any) => it?.postDetails || it?.post || it)
+    const found = items.find((it: any) => (it?._id || it?.id) === postId.value)
+    if (found && typeof found === 'object') {
+      // Fill caption if missing
+      const cap = extractCaption(found)
+      if (cap && !caption.value) caption.value = cap
+      // Fill images if missing
+      if (images.value.length === 0) {
+        let ids = normalizeImagesFromPost(found)
+        if (!ids.length) ids = deepExtractImageIds(found)
+        const exclude2 = new Set<string>([
+          (found as any)?._id,
+          (found as any)?.id,
+          (found as any)?.post,
+          (found as any)?.author,
+          postId.value
+        ].filter(Boolean))
+        ids = ids.filter((x) => !exclude2.has(x))
+        if (ids.length) images.value = ids
+      }
+      if (caption.value || images.value.length) {
+        // We recovered something meaningful; clear the error to avoid confusing the user
+        error.value = ''
+      }
+    }
+  } catch (e) {
+    // ignore fallback errors
   }
 }
 
