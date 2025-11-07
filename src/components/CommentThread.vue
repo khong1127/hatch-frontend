@@ -8,6 +8,7 @@ import {
   editComment, 
   deleteComment, 
   getAllUsers,
+  getUserById,
   commentingAddCommentSync,
   commentingDeleteCommentSync
 } from '@/services/api'
@@ -60,6 +61,23 @@ function authorLabel(idOrName: string) {
   return usersMap.value[idOrName] || idOrName
 }
 
+async function ensureAuthorResolved(idOrName: string) {
+  if (usersMap.value[idOrName]) return
+  // Only attempt if it looks like an ID
+  const looksLikeId = /^[a-f0-9]{24}$/i.test(idOrName) || /^[0-9a-f-]{36}$/i.test(idOrName)
+  if (!looksLikeId) return
+  try {
+    const res: any = await getUserById(idOrName)
+    const user = Array.isArray(res) ? (res[0]?.user || res[0]) : (res?.user || res)
+    const name = user?.username
+    if (typeof name === 'string' && name) {
+      usersMap.value = { ...usersMap.value, [idOrName]: name }
+    }
+  } catch (e) {
+    // ignore per-author failures
+  }
+}
+
 async function loadComments() {
   loading.value = true
   error.value = ''
@@ -73,6 +91,10 @@ async function loadComments() {
     // newest first
     list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
     comments.value = list
+    // Opportunistically resolve any unknown author IDs to usernames
+    await Promise.all(
+      comments.value.map(c => ensureAuthorResolved(c.author))
+    )
     if (comments.value.length === 0) {
       // No comments is not an error; keep UI quiet and show "No comments yet."
       error.value = ''
