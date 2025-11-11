@@ -10,7 +10,8 @@ import {
   getFriends,
   getReceivedFriendRequests,
   getSentFriendRequests,
-  getAllUsers
+  getAllUsers,
+  resolveUserId
 } from '@/services/api'
 import { friendingSendRequestSync } from '@/services/api'
 import { getToken } from '@/services/authToken'
@@ -28,7 +29,9 @@ const searchResults = ref<Array<{ username: string }>>([])
 // Requests tab state
 const reqLoading = ref(false)
 const reqError = ref('')
-const received = ref<Array<{ sender: string; receiver: string }>>([])
+// Store both display and raw sender identifiers to avoid losing original IDs
+interface ReceivedRequest { senderDisplay: string; senderRaw: string; receiver: string }
+const received = ref<ReceivedRequest[]>([])
 
 // Sent requests state
 const sentLoading = ref(false)
@@ -49,7 +52,7 @@ function isSent(u: string) {
 }
 
 function isReceivedFrom(u: string) {
-  return received.value.some(r => r.sender === u)
+  return received.value.some(r => r.senderDisplay === u || r.senderRaw === u)
 }
 
 async function refreshFriends() {
@@ -132,8 +135,11 @@ async function refreshRequests() {
       } catch { /* ignore */ }
     }
     const senders = Array.isArray(requestsList) ? requestsList.filter((v: any) => typeof v === 'string') : []
-    const mappedSenders = senders.map(id => usersMap.value[id] || id)
-    received.value = mappedSenders.map((sender: string) => ({ sender, receiver: username.value }))
+    received.value = senders.map((raw: string) => ({
+      senderDisplay: usersMap.value[raw] || raw,
+      senderRaw: raw,
+      receiver: username.value
+    }))
   } catch (e: any) {
     reqError.value = e.message || 'Failed to load requests'
   } finally {
@@ -237,10 +243,39 @@ async function doSendRequest(target: string) {
   }
 }
 
-async function doAccept(sender: string) {
+async function doAccept(senderOrRaw: string) {
   if (!username.value) return
   try {
-    await acceptFriendRequest(sender, username.value)
+    const senderId = await resolveUserId(senderOrRaw)
+    const receiverId = await resolveUserId(username.value)
+    const senderName = senderOrRaw
+    const receiverName = username.value
+    const variants = [
+      // expected order: sender -> receiver
+      { s: senderId, r: receiverId },
+      { s: senderId, r: receiverName },
+      { s: senderName, r: receiverId },
+      { s: senderName, r: receiverName },
+      // swapped order, in case backend expects opposite
+      { s: receiverId, r: senderId },
+      { s: receiverId, r: senderName },
+      { s: receiverName, r: senderId },
+      { s: receiverName, r: senderName }
+    ]
+    let success = false
+    let lastErr: any = null
+    for (const v of variants) {
+      try {
+        console.log('[FriendsView] Trying accept variant', v)
+        await acceptFriendRequest(v.s, v.r)
+        success = true
+        break
+      } catch (e: any) {
+        lastErr = e
+        console.warn('[FriendsView] accept variant failed', v, e?.message)
+      }
+    }
+    if (!success) throw lastErr || new Error('Failed to accept request (all variants)')
     refreshRequests()
     refreshFriends()
   } catch (e: any) {
@@ -248,10 +283,39 @@ async function doAccept(sender: string) {
   }
 }
 
-async function doDeny(sender: string) {
+async function doDeny(senderOrRaw: string) {
   if (!username.value) return
   try {
-    await denyFriendRequest(sender, username.value)
+    const senderId = await resolveUserId(senderOrRaw)
+    const receiverId = await resolveUserId(username.value)
+    const senderName = senderOrRaw
+    const receiverName = username.value
+    const variants = [
+      // expected order: sender -> receiver
+      { s: senderId, r: receiverId },
+      { s: senderId, r: receiverName },
+      { s: senderName, r: receiverId },
+      { s: senderName, r: receiverName },
+      // swapped order fallback
+      { s: receiverId, r: senderId },
+      { s: receiverId, r: senderName },
+      { s: receiverName, r: senderId },
+      { s: receiverName, r: senderName }
+    ]
+    let success = false
+    let lastErr: any = null
+    for (const v of variants) {
+      try {
+        console.log('[FriendsView] Trying deny variant', v)
+        await denyFriendRequest(v.s, v.r)
+        success = true
+        break
+      } catch (e: any) {
+        lastErr = e
+        console.warn('[FriendsView] deny variant failed', v, e?.message)
+      }
+    }
+    if (!success) throw lastErr || new Error('Failed to deny request (all variants)')
     refreshRequests()
   } catch (e: any) {
     alert(e.message || 'Failed to deny request')
@@ -309,11 +373,11 @@ refreshRequests()
       <div v-if="reqLoading">Loading requests…</div>
       <div v-if="reqError" class="error">{{ reqError }}</div>
       <ul v-if="received.length">
-        <li v-for="r in received" :key="r.sender + '->' + r.receiver" class="row">
-          <span>{{ r.sender }}</span>
+        <li v-for="r in received" :key="r.senderRaw + '->' + r.receiver" class="row">
+          <span>{{ r.senderDisplay }}</span>
           <div class="actions">
-            <button @click="doAccept(r.sender)" class="btn btn-brown">Accept</button>
-            <button @click="doDeny(r.sender)" class="btn btn-red">Decline</button>
+            <button @click="doAccept(r.senderRaw)" class="btn btn-brown">Accept</button>
+            <button @click="doDeny(r.senderRaw)" class="btn btn-red">Decline</button>
           </div>
         </li>
       </ul>

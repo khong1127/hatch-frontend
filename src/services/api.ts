@@ -17,6 +17,17 @@ export function getImageUrl(idOrUrl: string): string {
 // The updated API spec expects user fields as simple strings (typically user IDs or usernames depending on backend).
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
+  // Warn once in production if API_BASE_URL isn't set; relative URLs won't work on Render
+  if (!import.meta.env.DEV && !API_BASE_URL) {
+    try {
+      if (!(window as any).__api_base_warned__) {
+        console.warn('[api] VITE_API_BASE_URL is empty in production; API calls may fail.')
+        ;(window as any).__api_base_warned__ = true
+      }
+    } catch (e) {
+      // ignore non-browser contexts
+    }
+  }
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -43,6 +54,89 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     // Not JSON (e.g., plain text/empty). Return as any.
     return (raw as unknown) as T
   }
+}
+
+// ---------- User resolution helper (ID or username -> username) ----------
+const usernameCache = new Map<string, string>()
+const idCache = new Map<string, string>() // username -> id
+function looksLikeId(s: string) {
+  return /^[a-f0-9]{24}$/i.test(s) || /^[0-9a-f-]{36}$/i.test(s)
+}
+
+export async function resolveUsername(idOrName: string): Promise<string> {
+  if (!idOrName) return ''
+  const cached = usernameCache.get(idOrName)
+  if (cached) return cached
+  let name = ''
+  try {
+    if (looksLikeId(idOrName)) {
+      // Prefer direct lookup by ID
+      const res: any = await getUserById(idOrName as string)
+      const user = Array.isArray(res) ? (res[0]?.user || res[0]) : (res?.user || res)
+      name = user?.username || ''
+      if (!name) {
+        // Fallback scan if backend returned unusual shape
+        const all = await getAllUsers()
+        const match = Array.isArray(all) ? all.find((u: any) => u?._id === idOrName) : null
+        name = match?.username || ''
+      }
+    } else {
+      // Already a username or unknown format: verify it exists
+      name = String(idOrName)
+      if (!name) {
+        const res: any = await getUserByUsername(String(idOrName))
+        const user = Array.isArray(res) ? (res[0]?.user || res[0]) : (res?.user || res)
+        name = user?.username || ''
+      }
+    }
+  } catch {
+    // ignore errors; keep name empty to allow fallback below
+  }
+  // As last resort, if we couldn't resolve, try global list and match on either _id or username
+  if (!name) {
+    try {
+      const all = await getAllUsers()
+      if (Array.isArray(all)) {
+        const byId = all.find((u: any) => u?._id === idOrName)
+        name = byId?.username || ''
+        if (!name) {
+          const byName = all.find((u: any) => u?.username === idOrName)
+          name = byName?.username || ''
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // Cache whatever best-effort mapping we have
+  const finalName = name || String(idOrName)
+  usernameCache.set(idOrName, finalName)
+  return finalName
+}
+
+// Resolve a username or ID to a canonical user ID (best-effort). Returns the input if it already looks like an ID.
+export async function resolveUserId(nameOrId: string): Promise<string> {
+  if (!nameOrId) return ''
+  if (looksLikeId(nameOrId)) return nameOrId
+  const cached = idCache.get(nameOrId)
+  if (cached) return cached
+  let id = ''
+  // Try direct query first
+  try {
+    const res: any = await getUserByUsername(nameOrId)
+    const user = Array.isArray(res) ? (res[0]?.user || res[0]) : (res?.user || res)
+    id = user?._id || ''
+  } catch {
+    // ignore and fallback to scanning
+  }
+  if (!id) {
+    try {
+      const all = await getAllUsers()
+      const match = Array.isArray(all) ? all.find((u: any) => u?.username === nameOrId) : null
+      id = match?._id || ''
+    } catch { /* ignore */ }
+  }
+  const finalId = id || nameOrId
+  idCache.set(nameOrId, finalId)
+  return finalId
 }
 // ---------- PasswordAuthentication Queries ----------
 export function getUserByUsername(username: string) {

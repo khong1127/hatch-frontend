@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
-import { getAllUsers, getUserById } from '@/services/api'
+import { resolveUsername } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useImageUrls } from '@/composables/useImageUrls'
 
@@ -70,38 +70,13 @@ const authorLabel = computed(() => {
   return authorUsername.value || props.post.author
 })
 
-function looksLikeId(s: string) {
-  return /^[a-f0-9]{24}$/i.test(s) || /^[0-9a-f-]{36}$/i.test(s)
-}
+// removed local looksLikeId; resolution handled in services/api resolveUsername
 
 async function resolveAuthor() {
   if (props.hideAuthor) return
-  try {
-    const users = await getAllUsers()
-    if (Array.isArray(users)) {
-      const match = users.find((u: any) => u?._id === props.post.author)
-      if (match?.username) {
-        authorUsername.value = match.username
-        return
-      }
-    }
-    // Fallback: if author appears to be an ID and we didn't find it in the list, fetch directly
-    if (!authorUsername.value && looksLikeId(props.post.author)) {
-      try {
-        const res: any = await getUserById(props.post.author)
-        // Normalize possible shapes
-        const user = Array.isArray(res) ? (res[0]?.user || res[0]) : (res?.user || res)
-        const name = user?.username
-        if (typeof name === 'string' && name) {
-          authorUsername.value = name
-        }
-      } catch (e) {
-        // ignore; will show raw id
-      }
-    }
-  } catch (e) {
-    // If resolution fails, will show the ID
-  }
+  if (authorUsername.value) return
+  const name = await resolveUsername(props.post.author)
+  authorUsername.value = name
 }
 
 onMounted(() => {

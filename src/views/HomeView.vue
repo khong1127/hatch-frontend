@@ -2,7 +2,7 @@
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { getAllUsers, getFeedForUser, getFriends, getPostsByAuthor, getPostById } from '@/services/api'
+import { getAllUsers, getFeedForUser, getFriends, getPostsByAuthor, getPostById, resolveUsername } from '@/services/api'
 import PostCard from '@/components/PostCard.vue'
 import CommentThread from '@/components/CommentThread.vue'
 import { useRoute } from 'vue-router'
@@ -156,10 +156,10 @@ async function loadFeed() {
       rawFriends = (friendsRes2 as any)?.friends || []
     } catch { rawFriends = [] }
   }
-    const friends = Array.isArray(rawFriends) ? rawFriends.filter(Boolean) : []
+  const friends = Array.isArray(rawFriends) ? rawFriends.filter(Boolean) : []
 
-    if (selfId && !usersById.value[selfId]) usersById.value[selfId] = self
-    const friendIds = friends.map(resolveId)
+  if (selfId && !usersById.value[selfId]) usersById.value[selfId] = self
+  const friendIds = friends.map(resolveId)
     const authors = Array.from(new Set([selfId, ...friendIds]))
 
     // Helper: fetch posts for an author trying both ID and username
@@ -210,6 +210,13 @@ async function loadFeed() {
     })
     unique.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
     feed.value = unique
+    // Resolve any remaining author IDs to usernames via helper (in case getAllUsers isn't available)
+    const feedAuthors = Array.from(new Set(feed.value.map(p => p.author)))
+    for (const a of feedAuthors) {
+      if (!usersById.value[a]) {
+        usersById.value[a] = await resolveUsername(a)
+      }
+    }
   } catch (e: any) {
     error.value = e.message || 'Failed to load feed'
   } finally {

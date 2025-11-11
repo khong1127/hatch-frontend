@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { getPostsByAuthor, getPostById, getAllUsers, deletePost } from '@/services/api'
+import { getPostsByAuthor, getPostById, getAllUsers, deletePost, resolveUsername } from '@/services/api'
 import { useRoute, useRouter } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 
@@ -46,21 +46,32 @@ async function load() {
   error.value = ''
   try {
     // Resolve username to userId for backend queries
+    // Try getAllUsers to find ID; tolerate failure and fallback to username
     let userId: string | null = null
     try {
       const users = await getAllUsers()
-      console.log('[ProfileView] All users:', users)
       if (Array.isArray(users)) {
         const match = users.find((u: any) => u?.username === user)
         userId = match?._id || null
-        console.log('[ProfileView] Resolved user ID for', user, ':', userId)
       }
     } catch (e) {
-      console.error('[ProfileView] Failed to resolve user ID:', e)
+      // ignore failure resolving user list
     }
-
-    console.log('[ProfileView] Fetching posts for user ID:', userId || user)
-    const resRaw: any = await getPostsByAuthor(userId || user)
+    const primaryKey = userId || user
+    console.log('[ProfileView] Fetching posts for key:', primaryKey)
+    let resRaw: any
+    try {
+      resRaw = await getPostsByAuthor(primaryKey)
+    } catch (e1) {
+      if (userId) {
+        try { resRaw = await getPostsByAuthor(user) } catch (e2) { /* ignore */ }
+      } else {
+        const nameResolved = await resolveUsername(user)
+        if (nameResolved && nameResolved !== user) {
+          try { resRaw = await getPostsByAuthor(nameResolved) } catch (e3) { /* ignore */ }
+        }
+      }
+    }
     console.log('[ProfileView] Raw response from getPostsByAuthor:', resRaw)
     
     // Support object shape { posts: [...] } or array
@@ -71,8 +82,8 @@ async function load() {
     console.log('[ProfileView] Mapped posts:', mapped)
     
     // Sort newest first by createdAt if present
-    mapped.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-    posts.value = mapped
+  mapped.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+  posts.value = mapped
   } catch (e: any) {
     console.error('[ProfileView] Error loading posts:', e)
     error.value = e.message || 'Failed to load posts'
